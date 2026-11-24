@@ -733,4 +733,8 @@
     <string name="uninstalled_removed_msg">Removed stale entry: %1$s</string>
     <string name="cd_remove_uninstalled">Remove uninstalled entry</string>
 
+
+    <string name="az_status">Status</string>
+    <string name="az_active">Active</string>
+    <string name="az_off">Off</string>
 </resources>

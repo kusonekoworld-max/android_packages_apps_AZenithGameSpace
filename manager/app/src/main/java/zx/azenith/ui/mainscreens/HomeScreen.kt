@@ -243,11 +243,19 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
                                 InfoTile(
                                     modifier = Modifier.weight(1f).fillMaxHeight(),
-                                    icon = Icons.Rounded.Security,
-                                    iconOverride = rootIcon(uiState.rootStatusState),
-                                    label = stringResource(R.string.root_access),
-                                    value = stringResource(rootValueRes(uiState.rootStatusState)),
-                                    tone = rootTone(uiState.rootStatusState),
+                                    icon = Icons.Rounded.PowerSettingsNew,
+                                    iconOverride = if (uiState.serviceStatusRes == R.string.status_alive)
+                                        Icons.Rounded.CheckCircle
+                                    else Icons.Rounded.PowerSettingsNew,
+                                    label = stringResource(R.string.az_status),
+                                    value = stringResource(
+                                        if (uiState.serviceStatusRes == R.string.status_alive)
+                                            R.string.az_active
+                                        else R.string.az_off
+                                    ),
+                                    tone = if (uiState.serviceStatusRes == R.string.status_alive)
+                                        InfoTileTone.Good
+                                    else InfoTileTone.Bad,
                                     highlight = false,
                                     horizontalNav = HorizontalNav.BLOCK_RIGHT
                                 ) {
@@ -332,11 +340,19 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
                             InfoTile(
                                 modifier = Modifier.weight(1f).fillMaxHeight(),
-                                icon = Icons.Rounded.Security,
-                                iconOverride = rootIcon(uiState.rootStatusState),
-                                label = stringResource(R.string.root_access),
-                                value = stringResource(rootValueRes(uiState.rootStatusState)),
-                                tone = rootTone(uiState.rootStatusState),
+                                icon = Icons.Rounded.PowerSettingsNew,
+                                iconOverride = if (uiState.serviceStatusRes == R.string.status_alive)
+                                        Icons.Rounded.CheckCircle
+                                    else Icons.Rounded.PowerSettingsNew,
+                                label = stringResource(R.string.az_status),
+                                value = stringResource(
+                                        if (uiState.serviceStatusRes == R.string.status_alive)
+                                            R.string.az_active
+                                        else R.string.az_off
+                                    ),
+                                tone = if (uiState.serviceStatusRes == R.string.status_alive)
+                                        InfoTileTone.Good
+                                    else InfoTileTone.Bad,
                                 highlight = false,
                                 horizontalNav = HorizontalNav.BLOCK_RIGHT
                             ) {
