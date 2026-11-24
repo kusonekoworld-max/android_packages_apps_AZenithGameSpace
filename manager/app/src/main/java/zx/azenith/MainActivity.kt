@@ -538,7 +538,7 @@ fun MainScreen(fromTileType: String? = null) {
 
     val rebootDialog = rememberConfirmDialog(
         onConfirm = {
-            Shell.cmd("svc power reboot || reboot").submit()
+            zx.azenith.ui.util.AZenithControl.reboot(null)
         }
     )
 

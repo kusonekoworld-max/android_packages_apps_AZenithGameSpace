@@ -192,7 +192,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 isProfileApplying = true,
                 pendingProfileValue = profileReason
             )
-            Shell.cmd("/data/adb/modules/AZenith/system/bin/sys.azenith-service -p $profileReason").submit()
+            zx.azenith.ui.util.AZenithControl.applyProfile(profileReason.toString())
             viewModelScope.launch(Dispatchers.Main) { onSuccess() }
         }
     }

@@ -2065,7 +2065,7 @@ class ZXSidePanelService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
     private fun applyDaemonProfile(profileCode: String) {
         serviceScope.launch(Dispatchers.IO) {
             if (checkRootGranted()) {
-                Shell.cmd("$DAEMON_BIN -p $profileCode").submit()
+                zx.azenith.ui.util.AZenithControl.applyProfile(profileCode.toString())
             }
         }
     }
