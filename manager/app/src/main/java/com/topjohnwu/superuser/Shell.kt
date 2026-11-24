@@ -28,6 +28,8 @@ object Shell {
         fun to(list: MutableList<String>): Job { sink = list; return this }
 
         fun exec(): Result {
+            // Legacy `sys.azenith-service -bpl/-cbc/-tb/-rp/-p` calls go to the integrated daemon over binder.
+            zx.azenith.ui.util.DaemonBridge.tryHandle(cmds.joinToString("\n"), sink)?.let { return it }
             val out = ArrayList<String>()
             val err = ArrayList<String>()
             return try {

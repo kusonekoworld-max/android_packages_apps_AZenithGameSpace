@@ -200,7 +200,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun rebootDevice(reason: String) {
         viewModelScope.launch(Dispatchers.IO) {
             if (reason == "soft_reboot") {
-                Shell.cmd("killall system_server").submit()
+                zx.azenith.ui.util.AZenithControl.reboot("userspace")
             } else {
                 zx.azenith.ui.util.AZenithControl.reboot(reason.ifEmpty { null })
             }

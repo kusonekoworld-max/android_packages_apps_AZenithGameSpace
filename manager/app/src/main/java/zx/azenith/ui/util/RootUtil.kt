@@ -140,15 +140,18 @@ object RootUtils {
         }
     }
 
-    fun observeAutoMode(): Flow<String> = callbackFlow {
-        trySend(getAutoModeValue())
-        val job = launch { watchDaemonFile(MODES_FILE_NAME) { trySend(getAutoModeValue()) } }
-        awaitClose { job.cancel() }
+    // The integrated daemon has no current_modes file: AIenabled is the single source of truth.
+    fun observeAutoMode(): Flow<String> = flow {
+        var last: String? = null
+        while (true) {
+            val cur = getAutoModeValue()
+            if (cur != last) { emit(cur); last = cur }
+            delay(1000)
+        }
     }.flowOn(Dispatchers.IO)
 
     private fun getAutoModeValue(): String =
-        readRootFile(MODES_PATH)?.trim()
-            ?: PropertyUtils.get("persist.sys.azenithConfIntg.AIenabled")
+        PropertyUtils.get("persist.sys.azenithConfIntg.AIenabled")
 
     fun getCurrentProfileValue(): String {
         val fileVal = readRootFile(PROFILE_PATH)?.trim()

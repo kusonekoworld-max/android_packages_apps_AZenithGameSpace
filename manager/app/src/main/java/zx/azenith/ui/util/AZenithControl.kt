@@ -48,6 +48,17 @@ object AZenithControl {
         0
     }
 
+    /** Daemon built with the v5 interface (startTask / getTaskOutput). */
+    fun supportsTasks(): Boolean = getApiVersion() >= 5
+
+    fun startTask(name: String, arg: String = ""): Boolean = try {
+        service()?.startTask(name, arg) == true
+    } catch (_: Exception) { false }
+
+    fun taskOutput(name: String): String = try {
+        service()?.getTaskOutput(name) ?: ""
+    } catch (_: Exception) { "" }
+
     fun isDisabled(): Boolean = try {
         service()?.isDisabled() ?: (PropertyUtils.get("persist.sys.azenithIntg.disabletweak", "0") == "1")
     } catch (_: Exception) {

@@ -127,7 +127,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         AutoModeBus.notify(state)
         viewModelScope.launch(Dispatchers.IO) {
             PropertyUtils.set("persist.sys.azenithConfIntg.AIenabled", state)
-            RootUtils.writeRootFile("/data/system/AZenithInt/API/current_modes", "$state\n")
         }
     }
 

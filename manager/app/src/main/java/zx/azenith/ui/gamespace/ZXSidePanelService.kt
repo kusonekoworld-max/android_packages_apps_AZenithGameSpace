@@ -235,7 +235,7 @@ class ZXSidePanelService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
         private const val DAEMON_MODES_PATH = "/data/system/AZenithInt/API/current_modes"
         private const val DAEMON_RECORD_CMD_PATH = "/data/system/AZenithInt/API/record_cmd"
         private const val DAEMON_RECORD_STATE_PATH = "/data/system/AZenithInt/API/record_state"
-        private const val FRAMERATEDATA_DIR = "/data/adb/.config/AZenith/frameratedata"
+        private const val FRAMERATEDATA_DIR = "/data/system/AZenithInt/frameratedata"
         private const val AI_PROP = "persist.sys.azenithConfIntg.AIenabled"
         private const val LITE_PROP = "persist.sys.azenithConfIntg.litemode"
         private const val BYPASS_PROP = "persist.sys.azenithConfIntg.bypasschg"
@@ -1733,9 +1733,13 @@ class ZXSidePanelService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
                     var screenAwake = pm?.isInteractive ?: true
                     var focusedPkg: String? = null
 
-                    val daemonRunning = PropertyUtils.get("persist.sys.azenithIntg.state", "") == "running"
+                    val daemonRunning = RootUtils.isServiceAlive()
                     if (daemonRunning) {
-                        val statusText = telemetryCollector.readFileTextDirectOrSu(APP_STATUS_PATH, rootGranted)
+                        // The integrated daemon has no app_status file; gameinfo ("<pkg> <pid> <uid>") names the active game.
+                        val statusText = telemetryCollector.readFileTextDirectOrSu(DAEMON_GAMEINFO_PATH, false)
+                            ?.lineSequence()?.firstOrNull()?.trim()?.substringBefore(" ")
+                            ?.takeIf { it.isNotEmpty() && it != "NULL" }
+                            ?.let { "focused_app $it" }
                         if (!statusText.isNullOrBlank()) {
                             val focusedLine = statusText.lineSequence().firstOrNull { it.startsWith("focused_app ") }
                             focusedPkg = focusedLine?.substringAfter("focused_app ")?.substringBefore(" ")?.trim()
@@ -2056,9 +2060,6 @@ class ZXSidePanelService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
             val stateStr = if (enableAuto) "1" else "0"
             PropertyUtils.set(AI_PROP, stateStr)
             AutoModeBus.notify(stateStr)
-            if (checkRootGranted()) {
-                RootUtils.writeRootFile(DAEMON_MODES_PATH, "$stateStr\n")
-            }
         }
     }
 
@@ -2140,11 +2141,9 @@ class ZXSidePanelService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
                     val batteryInfo = readBatteryAndThermal(rootGranted)
 
                     // 3. Read AZenith Auto Mode, Running Profile, and Profile Duration
-                    val daemonRunning = PropertyUtils.get("persist.sys.azenithIntg.state", "") == "running"
+                    val daemonRunning = RootUtils.isServiceAlive()
                     val aiPropVal = PropertyUtils.get(AI_PROP, "")
-                    val modesFileVal = telemetryCollector.readFileTextDirectOrSu(DAEMON_MODES_PATH, rootGranted)?.trim()
                     val resolvedAuto = when {
-                        !modesFileVal.isNullOrEmpty() -> modesFileVal == "1"
                         aiPropVal.isNotEmpty() -> aiPropVal == "1"
                         else -> panelState.isAutoMode
                     }
