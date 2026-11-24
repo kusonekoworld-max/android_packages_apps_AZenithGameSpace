@@ -145,7 +145,7 @@ class TweakViewModel : ViewModel() {
     
     
     private val APPLIST_BACKUP_KEY = "__AZENITH_APPLIST_DATA__"
-    private val APPLIST_PATH = "/data/adb/.config/AZenith/gamelist/azenithApplist.json"
+    private val APPLIST_PATH = "/data/user/0/zx.azenith/files/azenithApplist.json"
     
     suspend fun createConfigFileBackup(
         context: Context, 
@@ -380,8 +380,7 @@ class TweakViewModel : ViewModel() {
 
     private fun loadMaliGovernorsInternal() {
 
-        val checkResult = Shell.cmd("/data/adb/modules/AZenith/system/bin/sys.azenith-utilityconf checkmalipath").exec()
-        val hasMali = checkResult.out.joinToString("").trim() == "true"
+        val hasMali = java.io.File("/sys/class/devfreq").listFiles()?.any { it.name.endsWith(".mali") } == true
 
         if (hasMali) {
             isMaliGpuAvailable = true
@@ -438,7 +437,7 @@ class TweakViewModel : ViewModel() {
             PropertyUtils.set("persist.sys.azenithIntg.custom_default_cpu_gov", selectedGov)
             val currentProfile = RootUtils.readRootFile("/data/system/AZenithInt/API/current_profile")
             if (currentProfile == "2") {
-                Shell.cmd("/data/adb/modules/AZenith/system/bin/sys.azenith-utilityconf setsgov $selectedGov").exec()
+                zx.azenith.ui.util.AZenithControl.restartService()
             }
         }
     }
@@ -450,7 +449,7 @@ class TweakViewModel : ViewModel() {
             PropertyUtils.set("persist.sys.azenithIntg.custom_powersave_cpu_gov", selectedGov)
             val currentProfile = RootUtils.readRootFile("/data/system/AZenithInt/API/current_profile")
             if (currentProfile == "3") {
-                Shell.cmd("/data/adb/modules/AZenith/system/bin/sys.azenith-utilityconf setsgov $selectedGov").exec()
+                zx.azenith.ui.util.AZenithControl.restartService()
             }
         }
     }
@@ -462,7 +461,7 @@ class TweakViewModel : ViewModel() {
             PropertyUtils.set("persist.sys.azenithIntg.custom_performance_cpu_gov", selectedGov)
             val currentProfile = RootUtils.readRootFile("/data/system/AZenithInt/API/current_profile")
             if (currentProfile == "3") {
-                Shell.cmd("/data/adb/modules/AZenith/system/bin/sys.azenith-utilityconf setsgov $selectedGov").exec()
+                zx.azenith.ui.util.AZenithControl.restartService()
             }
         }
     }
@@ -484,7 +483,7 @@ class TweakViewModel : ViewModel() {
             PropertyUtils.set("persist.sys.azenithIntg.custom_default_balanced_IO", selectedIO)
             val currentProfile = RootUtils.readRootFile("/data/system/AZenithInt/API/current_profile")
             if (currentProfile == "2") {
-                Shell.cmd("/data/adb/modules/AZenith/system/bin/sys.azenith-utilityconf setsIO $selectedIO").exec()
+                // belum didukung daemon integrated; prop tetap disimpan
             }
         }
     }
@@ -496,7 +495,7 @@ class TweakViewModel : ViewModel() {
             PropertyUtils.set("persist.sys.azenithIntg.custom_performance_IO", selectedIO)
             val currentProfile = RootUtils.readRootFile("/data/system/AZenithInt/API/current_profile")
             if (currentProfile == "1") {
-                Shell.cmd("/data/adb/modules/AZenith/system/bin/sys.azenith-utilityconf setsIO $selectedIO").exec()
+                // belum didukung daemon integrated; prop tetap disimpan
             }
         }
     }
@@ -508,7 +507,7 @@ class TweakViewModel : ViewModel() {
             PropertyUtils.set("persist.sys.azenithIntg.custom_powersave_IO", selectedIO)
             val currentProfile = RootUtils.readRootFile("/data/system/AZenithInt/API/current_profile")
             if (currentProfile == "3") {
-                Shell.cmd("/data/adb/modules/AZenith/system/bin/sys.azenith-utilityconf setsIO $selectedIO").exec()
+                // belum didukung daemon integrated; prop tetap disimpan
             }
         }
     }
@@ -521,7 +520,7 @@ class TweakViewModel : ViewModel() {
 
             val currentProfile = RootUtils.readRootFile("/data/system/AZenithInt/API/current_profile")
             if (currentProfile == "2") {
-                Shell.cmd("/data/adb/modules/AZenith/system/bin/sys.azenith-utilityconf setsMaliGov $selectedGov").exec()
+                // belum didukung daemon integrated; prop tetap disimpan
             }
         }
     }
@@ -533,7 +532,7 @@ class TweakViewModel : ViewModel() {
             PropertyUtils.set("persist.sys.azenithIntg.custom_performance_maligpu_gov", selectedGov)
             val currentProfile = RootUtils.readRootFile("/data/system/AZenithInt/API/current_profile")
             if (currentProfile == "1") {
-                Shell.cmd("/data/adb/modules/AZenith/system/bin/sys.azenith-utilityconf setsMaliGov $selectedGov").exec()
+                // belum didukung daemon integrated; prop tetap disimpan
             }
         }
     }
@@ -545,7 +544,7 @@ class TweakViewModel : ViewModel() {
             PropertyUtils.set("persist.sys.azenithIntg.custom_powersave_maligpu_gov", selectedGov)
             val currentProfile = RootUtils.readRootFile("/data/system/AZenithInt/API/current_profile")
             if (currentProfile == "3") {
-                Shell.cmd("/data/adb/modules/AZenith/system/bin/sys.azenith-utilityconf setsMaliGov $selectedGov").exec()
+                // belum didukung daemon integrated; prop tetap disimpan
             }
         }
     }
@@ -589,13 +588,16 @@ class TweakViewModel : ViewModel() {
         thermalState = checked
         viewModelScope.launch(Dispatchers.IO) {
             PropertyUtils.set("persist.sys.azenithConfIntg.thermalcore", if (checked) "1" else "0")
-            Shell.cmd("/data/adb/modules/AZenith/system/bin/sys.azenith-utilityconf setthermalcore ${if (checked) "1" else "0"}").exec()
+            PropertyUtils.set("persist.sys.azenithConfIntg.DThermal", if (checked) "1" else "0")
         }
     }
 
     fun executeSetRenderer(reason: String, context: Context) {
         isRendererLoading = true
-        Shell.cmd("/data/adb/modules/AZenith/system/bin/sys.azenith-utilityconf setrender $reason && setprop persist.sys.azenithConfIntg.renderer $reason").submit {
+        viewModelScope.launch(Dispatchers.IO) {
+            PropertyUtils.set("persist.sys.azenithConfIntg.renderer", reason)
+            zx.azenith.ui.util.AZenithControl.restartService()
+        }.invokeOnCompletion {
             viewModelScope.launch {
                 delay(1000)
                 loadAllConfiguration(context)

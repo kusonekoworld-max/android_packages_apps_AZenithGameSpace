@@ -153,7 +153,7 @@ fun SettingsScreen(
     val loadingDialog = rememberLoadingDialog()
     val uninstallDialog = rememberConfirmDialog(
         onConfirm = {
-            Shell.cmd("sh /data/adb/modules/AZenith/uninstall.sh").submit()
+            zx.azenith.ui.util.PropertyUtils.set("persist.sys.azenithIntg.state", "0")
         },
         onDismiss = {}
     )
@@ -461,7 +461,8 @@ fun SettingsScreen(
                                     JumpRow(activeId = jumpPulse, entryId = "settings.restart_service") {
                                         ExpressiveListItem(
                                                                                 onClick = {
-                                                                                    Shell.cmd("/data/adb/modules/AZenith/system/bin/sys.azenith-service --rerun").submit { result ->
+                                                                                    zx.azenith.ui.util.AZenithControl.restartService { isOk ->
+ val result = object { val isSuccess = isOk }
                                                                                         if (result.isSuccess) {
                                                                                             coroutineScope.launch {
                                                                                                 snackbarHostState.showSnackbar(restartToastText)

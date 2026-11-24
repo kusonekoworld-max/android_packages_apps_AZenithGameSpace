@@ -199,13 +199,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun rebootDevice(reason: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val cmd = when (reason) {
-                "" -> "svc power reboot"
-                "soft_reboot" -> "killall system_server"
-                "recovery" -> "/system/bin/input keyevent 26 && svc power reboot $reason || reboot $reason"
-                else -> "svc power reboot $reason || reboot $reason"
+            if (reason == "soft_reboot") {
+                Shell.cmd("killall system_server").submit()
+            } else {
+                zx.azenith.ui.util.AZenithControl.reboot(reason.ifEmpty { null })
             }
-            Shell.cmd(cmd).submit()
         }
     }
 

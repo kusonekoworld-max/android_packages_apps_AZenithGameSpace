@@ -225,7 +225,7 @@ class ZXSidePanelService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
         // profile posts used to share one slot, so each one silently replaced the other.
         const val NOTIFICATION_ID = 1002
 
-        private const val APPLIST_PATH = "/data/adb/.config/AZenith/gamelist/azenithApplist.json"
+        private const val APPLIST_PATH = "/data/user/0/zx.azenith/files/azenithApplist.json"
         private const val APP_STATUS_PATH = "/data/adb/.config/AZenith/app_status"
         private const val DAEMON_BIN = "/data/adb/modules/AZenith/system/bin/sys.azenith-service"
         private const val DAEMON_PROFILE_PATH = "/data/system/AZenithInt/API/current_profile"
@@ -1842,7 +1842,7 @@ class ZXSidePanelService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
 
     /**
      * Strictly checks whether [pkg] is enabled in AZenith's configured game list
-     * (`/data/adb/.config/AZenith/gamelist/azenithApplist.json` or `ApplistViewmodel.apps`).
+     * (`/data/user/0/zx.azenith/files/azenithApplist.json` or `ApplistViewmodel.apps`).
      * Never falls back to `ApplicationInfo.CATEGORY_GAME` so non-AZenith apps never trigger the overlay.
      */
     private fun isConfiguredAzGame(pkg: String, rootGranted: Boolean): Boolean {

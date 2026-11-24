@@ -622,7 +622,7 @@ fun GetStartedScreen(navController: NavController, onCompleted: () -> Unit = {})
                                                     onCheckedChange = { isChecked ->
                                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                         stateToast = isChecked
-                                                        Shell.cmd("su -c setprop persist.sys.azenithConfIntg.showtoast ${if (isChecked) "1" else "0"}").submit()
+                                                        zx.azenith.ui.util.PropertyUtils.set("persist.sys.azenithConfIntg.showtoast", if (isChecked) "1" else "0")
                                                     }
                                                 )
                                             }
@@ -639,10 +639,7 @@ fun GetStartedScreen(navController: NavController, onCompleted: () -> Unit = {})
                                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                         autoMode = isChecked
                                                         val state = if (isChecked) "0" else "1"
-                                                        Shell.cmd(
-                                                            "su -c setprop persist.sys.azenithConfIntg.AIenabled $state",
-                                                            "su -c \"echo $state > /data/system/AZenithInt/API/current_modes\""
-                                                        ).submit()
+                                                        zx.azenith.ui.util.PropertyUtils.set("persist.sys.azenithConfIntg.AIenabled", state)
                                                     }
                                                 )
                                             }

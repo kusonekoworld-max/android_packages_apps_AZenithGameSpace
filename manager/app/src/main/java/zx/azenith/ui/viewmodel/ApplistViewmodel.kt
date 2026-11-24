@@ -124,7 +124,7 @@ class ApplistViewmodel : ViewModel() {
         searchTextFieldValue = TextFieldValue("")
     }
 
-    private val configPath = "/data/adb/.config/AZenith/gamelist/azenithApplist.json"
+    private val configPath = "/data/user/0/zx.azenith/files/azenithApplist.json"
 
     // One predicate for the list and for the per-option counts, so a count can
     // never drift from what selecting that option would actually show.
@@ -239,14 +239,7 @@ class ApplistViewmodel : ViewModel() {
     private fun getEnabledPackages(): Set<String> {
         val set = mutableSetOf<String>()
         try {
-            val file = SuFile(configPath)
-            if (file.exists()) {
-                val content = SuFileInputStream.open(file).bufferedReader().use { it.readText() }
-                if (content.isNotBlank()) {
-                    val json = JSONObject(content)
-                    json.keys().forEach { set.add(it) }
-                }
-            }
+            set.addAll(zx.azenith.ui.util.AZenithControl.getGames())
         } catch (e: Exception) { e.printStackTrace() }
         return set
     }

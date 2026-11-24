@@ -339,7 +339,7 @@ class ZXFloatingAppManager(
         rootBindingInFlight = true
         runCatching {
             val intent = Intent(context, ZXFloatingAppRootService::class.java)
-            RootService.bind(intent, rootConnection)
+            context.bindService(intent, rootConnection, android.content.Context.BIND_AUTO_CREATE)
         }.onFailure {
             rootBindingInFlight = false
         }

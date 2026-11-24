@@ -138,9 +138,6 @@ dependencies {
     implementation(libs.me.zhanghai.android.appiconloader.coil)
     implementation(libs.io.coil.kt.coil.compose)
 
-    implementation(libs.com.github.topjohnwu.libsu.core)
-    implementation(libs.com.github.topjohnwu.libsu.service)
-    implementation(libs.com.github.topjohnwu.libsu.io)
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.tracing)

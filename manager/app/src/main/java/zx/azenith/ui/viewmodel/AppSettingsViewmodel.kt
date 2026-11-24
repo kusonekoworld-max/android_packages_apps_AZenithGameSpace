@@ -36,7 +36,7 @@ import zx.azenith.ui.util.AppConfig
 
 
 class AppSettingsViewModel : ViewModel() {
-    private val configPath = "/data/adb/.config/AZenith/gamelist/azenithApplist.json"
+    private val configPath = "/data/user/0/zx.azenith/files/azenithApplist.json"
     private val jsonHandler = Json { 
         prettyPrint = true
         ignoreUnknownKeys = true 
@@ -94,6 +94,7 @@ class AppSettingsViewModel : ViewModel() {
         } else {
             newMap.remove(packageName)
         }
+        viewModelScope.launch(Dispatchers.IO) { zx.azenith.ui.util.AZenithControl.setGame(packageName, isEnabled) }
         saveAndRefresh(newMap)
     }
 

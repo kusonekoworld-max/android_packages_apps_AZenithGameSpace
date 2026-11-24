@@ -239,7 +239,8 @@ internal fun SettingsGeneralPane(
                     title = stringResource(R.string.restart_service),
                     summary = stringResource(R.string.restart_service_desc),
                     onClick = {
-                        Shell.cmd("/data/adb/modules/AZenith/system/bin/sys.azenith-service --rerun").submit { res ->
+                        zx.azenith.ui.util.AZenithControl.restartService { isOk ->
+ val res = object { val isSuccess = isOk }
                             statusFeedback = if (res.isSuccess) {
                                 context.getString(R.string.toast_restarting_service)
                             } else {
