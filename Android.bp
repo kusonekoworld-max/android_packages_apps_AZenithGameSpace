@@ -1,0 +1,20 @@
+android_app_import {
+    name: "AZenithGameSpace",
+    apk: "prebuilt/AZenithGameSpace.apk",
+    certificate: "platform",
+    privileged: true,
+    system_ext_specific: true,
+    overrides: ["GameSpace"],
+    dex_preopt: {
+        enabled: false,
+    },
+    required: ["privapp_whitelist_zx.azenith"],
+}
+
+prebuilt_etc {
+    name: "privapp_whitelist_zx.azenith",
+    sub_dir: "permissions",
+    src: "prebuilt/privapp-permissions-azenith.xml",
+    filename_from_src: true,
+    system_ext_specific: true,
+}

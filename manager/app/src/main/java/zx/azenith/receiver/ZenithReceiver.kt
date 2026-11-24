@@ -1,0 +1,208 @@
+/*
+ * Copyright (C) 2026-2027 Zexshia
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package zx.azenith.receiver
+
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.widget.Toast
+import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
+import java.util.Locale
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import zx.azenith.MainActivity
+import zx.azenith.R
+import zx.azenith.ui.util.PropertyUtils
+
+
+class ZenithReceiver : BroadcastReceiver() {
+
+    companion object {
+        private const val CH_PROFILE = "az_profile"
+        private const val CH_SYSTEM = "az_system"
+        private const val PROFILE_ID = 1001
+        private const val GROUP_SYSTEM_LOGS = "zx.azenith.GROUP_SYSTEM"
+        
+        const val ACTION_MANAGE = "zx.azenith.ACTION_MANAGE"
+        const val ACTION_SHOW_SIDEPANEL = "zx.azenith.ACTION_SHOW_SIDEPANEL"
+        private const val ACTION_RESHOW = "zx.azenith.ACTION_RESHOW"
+    }
+
+    override fun onReceive(context: Context, intent: Intent) {
+        val action = intent.action ?: return
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        when (action) {
+            ACTION_SHOW_SIDEPANEL -> {
+                val appLabel = intent.getStringExtra("sidepanel_pkg") ?: ""
+                if (appLabel.isNotBlank()) {
+                    zx.azenith.ui.gamespace.ZXSidePanelService.show(context, null, appLabel)
+                }
+            }
+            ACTION_MANAGE -> {
+                val clearAll = intent.getBooleanExtra("clearall", false) || 
+                              intent.getStringExtra("clearall") == "true"
+                if (clearAll) {
+                    // Keep the overlay service notification alive; everything else this app
+                    // posted (profile cards, system logs) is safe to drop.
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        manager.activeNotifications
+                            .filter { it.id != zx.azenith.ui.gamespace.ZXSidePanelService.NOTIFICATION_ID }
+                            .forEach { manager.cancel(it.tag, it.id) }
+                    } else {
+                        manager.cancelAll()
+                    }
+                }
+                intent.getStringExtra("toasttext")?.let {
+                    Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+                }
+                intent.getStringExtra("notifytext")?.let {
+                    handleNotification(context, intent, manager)
+                }
+                val notifyTitle = intent.getStringExtra("notifytitle") ?: ""
+                val notifyMessage = intent.getStringExtra("notifytext") ?: ""
+                if (notifyTitle.contains("Performance Profile", ignoreCase = true) &&
+                    notifyMessage.startsWith("Running at ", ignoreCase = true)
+                ) {
+                    val appName = notifyMessage.removePrefix("Running at ").trim()
+                    zx.azenith.ui.gamespace.ZXSidePanelService.show(context, null, appName)
+                } else if (notifyTitle.contains("ECO Mode", ignoreCase = true) ||
+                    notifyTitle.contains("Balanced Profile", ignoreCase = true) ||
+                    notifyMessage.contains("Manual", ignoreCase = true)
+                ) {
+                    zx.azenith.ui.gamespace.ZXSidePanelService.stop(context)
+                }
+
+                val openFloatingPkg = intent.getStringExtra("open_floating_app")
+                if (!openFloatingPkg.isNullOrBlank()) {
+                    val floatIntent = Intent(context, zx.azenith.ui.gamespace.ZXSidePanelService::class.java).apply {
+                        this.action = zx.azenith.ui.gamespace.ZXSidePanelService.ACTION_OPEN_FLOATING_APP
+                        putExtra(zx.azenith.ui.gamespace.ZXSidePanelService.EXTRA_PACKAGE_NAME, openFloatingPkg)
+                    }
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        androidx.core.content.ContextCompat.startForegroundService(context, floatIntent)
+                    } else {
+                        context.startService(floatIntent)
+                    }
+                }
+            }
+
+            ACTION_RESHOW -> {
+
+
+                val pendingResult = goAsync()
+                CoroutineScope(Dispatchers.Default).launch {
+                    delay(3000)
+                    val reshow = Intent(context, ZenithReceiver::class.java).apply {
+                        this.action = ACTION_MANAGE
+                        putExtras(intent.extras ?: return@launch)
+                    }
+                    context.sendBroadcast(reshow)
+                    pendingResult.finish()
+                }
+            }
+        }
+    }
+
+    private fun handleNotification(context: Context, intent: Intent, manager: NotificationManager) {
+        val title = intent.getStringExtra("notifytitle") ?: "AZenith"
+        val message = intent.getStringExtra("notifytext") ?: ""
+        
+        val chrono = intent.getBooleanExtra("chrono_bool", 
+            intent.getStringExtra("chrono") == "true")
+        
+        val timeout = intent.getStringExtra("timeout")?.toLongOrNull() ?: 0L
+    
+        val isProfile = title.lowercase(Locale.ROOT).let {
+            it.contains("profile") || it.contains("mode") || it.contains("initializing...")
+        }
+    
+        if (isProfile && PropertyUtils.get("persist.sys.azenith.profilenotifications") == "0") {
+            return
+        }
+    
+        val channelId = if (isProfile) CH_PROFILE else CH_SYSTEM
+
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val name = if (isProfile) context.getString(R.string.notif_ch_profiles) else context.getString(R.string.notif_ch_system)
+
+            val channel = NotificationChannel(channelId, name, NotificationManager.IMPORTANCE_LOW)
+            manager.createNotificationChannel(channel)
+        }
+
+
+        val pendingIntentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+
+
+        val clickIntent = Intent(context, MainActivity::class.java)
+        val clickPI = PendingIntent.getActivity(context, 0, clickIntent, pendingIntentFlags)
+
+
+        val builder = NotificationCompat.Builder(context, channelId).apply {
+
+            setSmallIcon(R.drawable.avatar_transparent)
+            setContentTitle(title)
+            setUsesChronometer(chrono)
+            setShowWhen(false)
+            setOngoing(isProfile)
+            setAutoCancel(!isProfile)
+            setContentIntent(clickPI)
+        
+            if (isProfile) {
+                setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            } else {
+                setContentText(message)
+            }
+        
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                setColor(ContextCompat.getColor(context, android.R.color.holo_blue_dark))
+            }
+        
+            if (isProfile) {
+                val reshowIntent = Intent(context, ZenithReceiver::class.java).apply {
+                    this.action = ACTION_RESHOW
+                    putExtra("notifytitle", title)
+                    putExtra("notifytext", message)
+                    putExtra("chrono_bool", chrono)
+                }
+                val deletePI = PendingIntent.getBroadcast(context, title.hashCode(), reshowIntent, pendingIntentFlags)
+                setDeleteIntent(deletePI)
+            } else {
+                setGroup(GROUP_SYSTEM_LOGS)
+            }
+        
+            if (timeout > 0L) {
+                setTimeoutAfter(timeout)
+            }
+        }
+
+        manager.notify(if (isProfile) PROFILE_ID else title.hashCode(), builder.build())
+    }
+}

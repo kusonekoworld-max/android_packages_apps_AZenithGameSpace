@@ -1,0 +1,613 @@
+/*
+ * Copyright (C) 2026-2027 Zexshia
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package zx.azenith.ui.component
+
+import android.util.Log
+import android.view.KeyEvent
+import zx.azenith.ui.theme.azShape
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import zx.azenith.ui.gamespace.GameSpaceInputSource
+import zx.azenith.ui.gamespace.GameSpaceOverlayState
+import zx.azenith.ui.gamespace.springPressBounce
+import zx.azenith.ui.util.AudioUtil
+
+/**
+ * Back/ESC on a gamepad is handled by the game space root before any child sees it, so an
+ * open menu has to announce itself here or the shell navigates away underneath it.
+ */
+internal object ZXDropDownNav {
+    private val dismissers = mutableListOf<() -> Unit>()
+
+    val isActive: Boolean get() = dismissers.isNotEmpty()
+
+    fun push(dismiss: () -> Unit) {
+        if (!dismissers.contains(dismiss)) dismissers.add(dismiss)
+    }
+
+    fun pop(dismiss: () -> Unit) {
+        dismissers.remove(dismiss)
+    }
+
+    fun dismissTop() {
+        dismissers.lastOrNull()?.invoke()
+    }
+}
+
+/** Root-space rect of the row a menu hangs off. */
+data class ZXDropDownAnchor(
+    val left: Float,
+    val top: Float,
+    val right: Float,
+    val bottom: Float
+)
+
+class ZXDropDownState internal constructor() {
+    var expanded: Boolean by mutableStateOf(false)
+        internal set
+
+    var anchor: ZXDropDownAnchor? by mutableStateOf(null)
+        internal set
+
+    fun show() {
+        expanded = true
+    }
+
+    fun dismiss() {
+        expanded = false
+    }
+}
+
+@Composable
+fun rememberZXDropDownState(): ZXDropDownState = remember { ZXDropDownState() }
+
+/** Measures the trigger row so the menu can hang off it. Apply to the row's modifier. */
+fun Modifier.zxDropDownAnchor(state: ZXDropDownState): Modifier =
+    this.onGloballyPositioned { coordinates ->
+        val position = coordinates.positionInRoot()
+        val size = coordinates.size
+        val next = ZXDropDownAnchor(
+            left = position.x,
+            top = position.y,
+            right = position.x + size.width,
+            bottom = position.y + size.height
+        )
+        if (state.anchor != next) state.anchor = next
+    }
+
+/**
+ * A compact anchored choice menu for the game space.
+ *
+ * Renders in-window rather than as a Dialog: a dialog is centred and full-width, which on a
+ * phone or a TV covers most of the screen and leaves nothing for the d-pad to navigate by.
+ * This sits directly under its anchor row, so the surrounding list stays readable and the
+ * focus trap is a plain focus graph instead of a second window.
+ *
+ * Place it inside a [Box] that fills the area the menu may cover, as a sibling after the
+ * content it overlays.
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+fun <T> ZXDropDownMenu(
+    state: ZXDropDownState,
+    options: List<T>,
+    selectedOption: T?,
+    onOptionSelected: (T) -> Unit,
+    modifier: Modifier = Modifier,
+    optionLabel: (T) -> String = { it.toString() },
+    optionSupporting: (T) -> String? = { null },
+    optionIcon: ((T) -> ImageVector?)? = null,
+    minWidth: Dp = 232.dp,
+    maxWidth: Dp = 420.dp
+) {
+    if (options.isEmpty()) return
+
+    val context = LocalContext.current
+    val scheme = MaterialTheme.colorScheme
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
+    val requesters = remember(options) { List(options.size) { FocusRequester() } }
+    val attachedItems = remember(options) { mutableStateMapOf<Int, Boolean>() }
+
+    var overlayOrigin by remember { mutableStateOf(Offset.Zero) }
+    var overlayWidth by remember { mutableFloatStateOf(0f) }
+    var overlayHeight by remember { mutableFloatStateOf(0f) }
+    var menuViewport by remember { mutableFloatStateOf(0f) }
+
+    val dismissWithCancel: () -> Unit = {
+        Log.d("PAD", "gs dropdown cancel")
+        AudioUtil.playCancel(context)
+        state.dismiss()
+    }
+
+    val dropdownToken = remember { Any() }
+    DisposableEffect(state.expanded, dropdownToken) {
+        if (state.expanded) {
+            GameSpaceOverlayState.acquire(dropdownToken, "ZXDropDown")
+            ZXDropDownNav.push(dismissWithCancel)
+        }
+        onDispose {
+            GameSpaceOverlayState.release(dropdownToken)
+            ZXDropDownNav.pop(dismissWithCancel)
+        }
+    }
+
+    BackHandler(enabled = state.expanded, onBack = dismissWithCancel)
+
+    var openedBefore by remember { mutableStateOf(false) }
+
+    val anchor = state.anchor
+    val gapPx = with(density) { 6.dp.toPx() }
+
+    val menuWidth = with(density) {
+        val anchorWidth = anchor?.let { it.right - it.left } ?: 0f
+        (if (anchorWidth > 0f) anchorWidth else minWidth.toPx())
+            .coerceIn(minWidth.toPx(), maxWidth.toPx())
+            .toDp()
+    }
+    val menuWidthPx = with(density) { menuWidth.toPx() }
+
+    // Decided from the option count, never from the measured height: the enter spec would
+    // otherwise be rebuilt mid-animation and restart every time the panel settles. Capped
+    // at the panel's own heightIn so the estimate is never larger than what it can render.
+    val estimatedHeight = with(density) {
+        (options.size * 52.dp.toPx() + 16.dp.toPx()).coerceAtMost(344.dp.toPx())
+    }
+    // An unmeasured overlay must never flip: the flip is derived from the room left below the
+    // row, and a zero height reads as no room at all.
+    val flipsUp = anchor != null && overlayHeight > 0f &&
+        anchor.bottom - overlayOrigin.y + gapPx + estimatedHeight > overlayHeight &&
+        anchor.top - overlayOrigin.y - gapPx - estimatedHeight > 0f
+
+    // Where the panel sits, in the overlay's own coordinates. Deterministic -- never the
+    // measured height -- so the enter spec is built once. A position that moves between
+    // frames rebuilds the spec and restarts the transition, which is what left the expand
+    // clip frozen half-open and the panel showing one row.
+    val menuLeft = if (anchor == null) {
+        0f
+    } else {
+        (anchor.right - overlayOrigin.x - menuWidthPx).coerceIn(
+            0f,
+            (overlayWidth - menuWidthPx).coerceAtLeast(0f)
+        )
+    }
+    // The top is clamped to the overlay on both ends: a row near the bottom whose panel
+    // does not fit above it either used to be placed past the edge, where it could not be
+    // tapped at all. Clamping keeps it on screen even when it has to overlap its anchor.
+    val rawMenuTop = if (anchor == null) {
+        0f
+    } else if (flipsUp) {
+        anchor.top - overlayOrigin.y - gapPx - estimatedHeight
+    } else {
+        anchor.bottom - overlayOrigin.y + gapPx
+    }
+    val menuTop = if (overlayHeight > 0f) {
+        rawMenuTop.coerceIn(0f, (overlayHeight - estimatedHeight).coerceAtLeast(0f))
+    } else {
+        rawMenuTop
+    }
+
+    // The panel grows and scales out of the row that opened it: the pivot is that row's
+    // centre projected into the panel's own space, so the motion is anchored to the row
+    // wherever it sits rather than to a hard-coded edge.
+    val originY = if (anchor == null || estimatedHeight <= 0f) {
+        0.5f
+    } else {
+        val rowCentre = (anchor.top + anchor.bottom) / 2f - overlayOrigin.y - menuTop
+        (rowCentre / estimatedHeight).coerceIn(0f, 1f)
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .onGloballyPositioned { coordinates ->
+                overlayOrigin = coordinates.positionInRoot()
+                overlayWidth = coordinates.size.width.toFloat()
+                overlayHeight = coordinates.size.height.toFloat()
+            }
+    ) {
+        // Driven by animateFloatAsState rather than AnimatedVisibility. This menu is hosted
+        // inside other animated containers (an AnimatedContent stage, an AnimatedVisibility
+        // panel), and a transition owned here is the only one their machinery cannot swallow
+        // -- a nested AnimatedVisibility inside an already-settled parent has been observed
+        // skipping its enter entirely. Both values are read in the draw phase, so nothing
+        // recomposes per frame.
+        val panelScale by animateFloatAsState(
+            targetValue = if (state.expanded) 1f else 0.86f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioLowBouncy,
+                stiffness = Spring.StiffnessMediumLow
+            ),
+            label = "ZXDropDownScale"
+        )
+        val fade by animateFloatAsState(
+            targetValue = if (state.expanded) 1f else 0f,
+            animationSpec = tween(
+                durationMillis = if (state.expanded) 110 else 90,
+                easing = if (state.expanded) Motion.EmphasizedDecelerate else Motion.EmphasizedAccelerate
+            ),
+            label = "ZXDropDownFade"
+        )
+
+        // Held composed only while something is on screen, so the rows underneath stay
+        // tappable while the exit is allowed to finish.
+        var render by remember { mutableStateOf(false) }
+        LaunchedEffect(state.expanded) {
+            if (state.expanded) {
+                render = true
+                openedBefore = true
+                val initial = options.indexOf(selectedOption).let { if (it >= 0) it else 0 }
+                Log.d("PAD", "gs dropdown open initial=$initial size=${options.size}")
+                val useGamepad = GameSpaceInputSource.isGamepadLast ||
+                    GamepadInput.dpadMode ||
+                    GamepadInput.controllerConnected
+                if (useGamepad) {
+                    GamepadInput.onDpadKey()
+                }
+                val attached = withTimeoutOrNull(500L) {
+                    snapshotFlow { attachedItems[initial] == true }.first { it }
+                } == true
+                var seeded = false
+                if (attached) {
+                    withFrameNanos { }
+                    seeded = runCatching { requesters[initial].requestFocus() }.getOrDefault(false)
+                    if (!seeded) {
+                        for (attempt in 1..8) {
+                            withFrameNanos { }
+                            seeded = runCatching { requesters[initial].requestFocus() }.getOrDefault(false)
+                            if (seeded) break
+                        }
+                    }
+                }
+                Log.d("PAD", "gs dropdown seed initial=$initial attached=$attached seeded=$seeded")
+            } else {
+                if (openedBefore) {
+                    val useGamepad = GameSpaceInputSource.isGamepadLast ||
+                        GamepadInput.dpadMode ||
+                        GamepadInput.controllerConnected
+                    if (useGamepad) {
+                        GamepadInput.onDpadKey()
+                        withFrameNanos { }
+                        val restored = GamepadFocusNav.restoreFocus()
+                        Log.d("PAD", "gs dropdown closed restoreImmediate=$restored")
+                    }
+                }
+                delay(160)
+                render = false
+                if (openedBefore) {
+                    withFrameNanos { }
+                    if (!GamepadShortcuts.hasRowFocus &&
+                        (GameSpaceInputSource.isGamepadLast || GamepadInput.dpadMode)
+                    ) {
+                        val restored = GamepadFocusNav.restoreFocus()
+                        Log.d("PAD", "gs dropdown closed restoreAfterDispose=$restored")
+                    }
+                }
+            }
+        }
+
+        if (render) {
+            CompositionLocalProvider(LocalGamepadFocusEnabled provides true) {
+                val scrimInteraction = remember { MutableInteractionSource() }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .focusProperties { canFocus = false }
+                        .clickable(
+                            interactionSource = scrimInteraction,
+                            indication = null,
+                            onClick = dismissWithCancel
+                        )
+                )
+
+                Surface(
+                    shape = azShape(20.dp),
+                    color = scheme.surfaceContainerHigh,
+                    contentColor = scheme.onSurface,
+                    tonalElevation = 3.dp,
+                    shadowElevation = 8.dp,
+                    modifier = Modifier
+                        .offset { IntOffset(menuLeft.roundToInt(), menuTop.roundToInt()) }
+                        .width(menuWidth)
+                        .heightIn(max = 344.dp)
+                        .graphicsLayer {
+                            // Scale cannot crop, so the panel can no longer be truncated the way
+                            // the clip-based expandVertically transition truncated it.
+                            alpha = fade
+                            scaleX = panelScale
+                            scaleY = panelScale
+                            transformOrigin = TransformOrigin(1f, originY)
+                        }
+                        .onGloballyPositioned { menuViewport = it.size.height.toFloat() }
+                        .focusProperties {
+                            canFocus = false
+                            if (state.expanded) {
+                                onExit = {
+                                    if (state.expanded) {
+                                        cancelFocusChange()
+                                        Log.d("PAD", "gs dropdown cancelExit")
+                                    }
+                                }
+                            }
+                        }
+                        .focusGroup()
+                        .onPreviewKeyEvent { event ->
+                            when (event.nativeKeyEvent.keyCode) {
+                                KeyEvent.KEYCODE_DPAD_LEFT,
+                                KeyEvent.KEYCODE_DPAD_RIGHT -> true
+                                else -> false
+                            }
+                        }
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(scrollState)
+                            .padding(vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        options.forEachIndexed { index, option ->
+                            DisposableEffect(index) {
+                                onDispose { attachedItems.remove(index) }
+                            }
+                            ZXDropDownItem(
+                                label = optionLabel(option),
+                                supporting = optionSupporting(option),
+                                icon = optionIcon?.invoke(option),
+                                selected = option == selectedOption,
+                                menuExpanded = state.expanded,
+                                requester = requesters[index],
+                                upTarget = requesters.getOrNull(index - 1),
+                                downTarget = requesters.getOrNull(index + 1),
+                                scrollState = scrollState,
+                                viewport = { menuViewport },
+                                onAttached = { attachedItems[index] = true },
+                                onClick = {
+                                    onOptionSelected(option)
+                                    state.dismiss()
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ZXDropDownItem(
+    label: String,
+    supporting: String?,
+    icon: ImageVector?,
+    selected: Boolean,
+    menuExpanded: Boolean,
+    requester: FocusRequester,
+    upTarget: FocusRequester?,
+    downTarget: FocusRequester?,
+    scrollState: ScrollState,
+    viewport: () -> Float,
+    onAttached: () -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val scheme = MaterialTheme.colorScheme
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val shape = azShape(14.dp)
+
+    val itemTop = remember { mutableFloatStateOf(0f) }
+    val itemHeight = remember { mutableFloatStateOf(0f) }
+
+    val fill by animateColorAsState(
+        targetValue = if (selected) scheme.primaryContainer else Color.Transparent,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "ZXDropDownItemFill"
+    )
+
+    var appeared by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { appeared = true }
+    val checkScale by animateFloatAsState(
+        targetValue = if (appeared && selected) 1f else 0.5f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "ZXDropDownCheckScale"
+    )
+
+    val activateItem: () -> Unit = {
+        Log.d("PAD", "gs dropdown select label=$label")
+        AudioUtil.playOk(context)
+        onClick()
+    }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .springPressBounce(pressedScale = 0.97f)
+            .onGloballyPositioned { coordinates ->
+                itemTop.floatValue = coordinates.positionInParent().y
+                itemHeight.floatValue = coordinates.size.height.toFloat()
+                onAttached()
+            }
+            .onFocusChanged { focus ->
+                if (!focus.isFocused) return@onFocusChanged
+                Log.d("PAD", "gs dropdown focus label=$label")
+                val visible = viewport()
+                if (visible <= 0f) return@onFocusChanged
+                val top = itemTop.floatValue
+                val height = itemHeight.floatValue
+                val target = when {
+                    top < scrollState.value -> top
+                    top + height > scrollState.value + visible -> top + height - visible
+                    else -> return@onFocusChanged
+                }.coerceIn(0f, scrollState.maxValue.toFloat())
+                scope.launch { scrollState.animateScrollTo(target.roundToInt()) }
+            }
+            .focusProperties {
+                // The menu is the only thing that may hold focus while it is open, so the
+                // horizontal search is cancelled outright and the vertical one stops at
+                // the ends instead of walking out into the list behind the scrim.
+                if (!menuExpanded) {
+                    canFocus = false
+                }
+                left = FocusRequester.Cancel
+                right = FocusRequester.Cancel
+                up = upTarget ?: FocusRequester.Cancel
+                down = downTarget ?: FocusRequester.Cancel
+            }
+            .focusRequester(requester)
+            .gamepadFocusOutline(shape = shape, register = false, onActivate = activateItem)
+            .clip(shape)
+            .background(fill, shape)
+            .focusProperties { canFocus = false }
+            .clickable(onClick = activateItem)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (selected) scheme.onPrimaryContainer else scheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+        }
+
+        Column(modifier = Modifier.weight(1f)) {
+            BlurCrossfadeText(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                ),
+                color = if (selected) scheme.onPrimaryContainer else scheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (!supporting.isNullOrBlank()) {
+                Text(
+                    text = supporting,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (selected) {
+                        scheme.onPrimaryContainer.copy(alpha = 0.8f)
+                    } else {
+                        scheme.onSurfaceVariant
+                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        if (selected) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.Rounded.Check,
+                contentDescription = null,
+                tint = scheme.onPrimaryContainer,
+                modifier = Modifier
+                    .size(18.dp)
+                    .graphicsLayer {
+                        scaleX = checkScale
+                        scaleY = checkScale
+                    }
+            )
+        }
+    }
+}

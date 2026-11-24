@@ -1,0 +1,2098 @@
+/*
+ * Copyright (C) 2026-2027 Zexshia
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
+
+package zx.azenith.ui.subscreens
+
+import zx.azenith.ui.theme.azShape
+import zx.azenith.ui.theme.currentPersonalization
+import zx.azenith.ui.theme.azShapeCorners
+
+
+import zx.azenith.ui.navigation.safePopBackStack
+import android.app.Activity
+import android.content.Context
+import android.media.MediaMetadataRetriever
+import android.net.Uri
+import android.os.Build
+import android.provider.OpenableColumns
+import android.webkit.MimeTypeMap
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material3.TopAppBarScrollBehavior
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.edit
+import androidx.navigation.NavController
+import coil.compose.AsyncImage
+import com.materialkolor.dynamiccolor.ColorSpec
+import com.materialkolor.rememberDynamicColorScheme
+import com.yalantis.ucrop.UCrop
+import java.io.File
+import kotlinx.coroutines.launch
+import zx.azenith.AZENITH_NAV_ITEMS
+import zx.azenith.BottomNavBar
+import zx.azenith.R
+import zx.azenith.ui.theme.CornerStyle
+import zx.azenith.ui.theme.NAV_CENTER
+import zx.azenith.ui.component.*
+import zx.azenith.ui.theme.ColorMode
+import zx.azenith.ui.theme.ThemeController
+import zx.azenith.ui.theme.animateColorSchemeAsState
+import zx.azenith.ui.util.clearHeaderImage
+import zx.azenith.ui.util.getBannerGradientAlpha
+import zx.azenith.ui.util.getHeaderImage
+import zx.azenith.ui.util.isBannerImageEnabled
+import zx.azenith.ui.util.saveHeaderImage
+import zx.azenith.ui.util.saveMediaDirectly
+import zx.azenith.ui.util.setBannerGradientAlpha
+import zx.azenith.ui.util.setBannerImageEnabled
+import zx.azenith.ui.component.ZenithSlider
+import zx.azenith.ui.theme.Personalization
+import zx.azenith.ui.theme.withAccentIntensity
+import zx.azenith.ui.component.LookAndFeelSection
+import zx.azenith.ui.theme.ColorEngine
+import zx.azenith.ui.theme.NavLabelMode
+import androidx.compose.ui.graphics.Shape
+import zx.azenith.ui.theme.NAV_SCALE_MAX
+import zx.azenith.ui.theme.NAV_SCALE_MIN
+import zx.azenith.ui.theme.NAV_SCALE_DEFAULT
+import zx.azenith.ui.theme.navScalePercent
+import zx.azenith.ui.theme.NAV_SPACING_MAX
+import zx.azenith.ui.theme.NAV_SPACING_MIN
+import androidx.compose.foundation.background
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.ui.graphics.vector.ImageVector
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
+
+
+/**
+ * Cache key for the wallpaper-derived swatch, which has no seed colour of its
+ * own. Real seeds are ARGB ints, so this cannot collide with one.
+ */
+
+private val keyColorOptions = listOf(
+    Color(0xFFF44336).toArgb(),
+    Color(0xFFE91E63).toArgb(),
+    Color(0xFF9C27B0).toArgb(),
+    Color(0xFF673AB7).toArgb(),
+    Color(0xFF3F51B5).toArgb(),
+    Color(0xFF2196F3).toArgb(),
+    Color(0xFF00BCD4).toArgb(),
+    Color(0xFF009688).toArgb(),
+    Color(0xFF4FAF50).toArgb(),
+    Color(0xFFFFEB3B).toArgb(),
+    Color(0xFFFFC107).toArgb(),
+    Color(0xFFFF9800).toArgb(),
+    Color(0xFF795548).toArgb(),
+    Color(0xFF607D8F).toArgb(),
+    Color(0xFFFF9CA8).toArgb(),
+)
+
+@Composable
+fun ColorPaletteScreen(navController: NavController) {
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current 
+    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    
+    val prefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
+    
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    
+    var isBannerEnabled by rememberSaveable { 
+        mutableStateOf(context.isBannerImageEnabled()) 
+    }
+
+    var bannerGradientAlpha by rememberSaveable { 
+        mutableFloatStateOf(context.getBannerGradientAlpha()) 
+    }
+
+    var customBannerUri by remember { 
+        mutableStateOf(context.getHeaderImage()) 
+    }
+    
+
+    var pendingCropUriPath by rememberSaveable { 
+        mutableStateOf<String?>(null) 
+    }
+    
+
+    var isBlurEnabled by rememberSaveable {
+        mutableStateOf(prefs.getBoolean("expressive_blur_ui", false))
+    }
+    
+    var useScrollAnimation by rememberSaveable {
+        mutableStateOf(prefs.getBoolean("use_scroll_animation", true))
+    }
+
+    var personalization by remember { mutableStateOf(Personalization.read(context)) }
+    // Shape/text/motion changes are felt instantly across the whole app, so they are
+    // written on every drag frame rather than on release: the slider is the preview.
+    val persistPersonalization: (Personalization) -> Unit = { next ->
+        personalization = next
+        prefs.edit()
+            .putFloat(Personalization.PREF_TEXT, next.textScale)
+            .putString(Personalization.PREF_ROUNDNESS, next.cornerStyle.ordinal.toString())
+            .putString(Personalization.PREF_ACCENT, next.accentIntensity.ordinal.toString())
+            .putFloat(Personalization.PREF_NAV_SHAPE, next.navRadius)
+            .putString(Personalization.PREF_NAV_LABELS, next.navLabels.ordinal.toString())
+            .putBoolean(Personalization.PREF_NAV_VIBRANT, next.vibrantNav)
+            .putFloat(Personalization.PREF_NAV_SCALE, next.navScale)
+            .putFloat(Personalization.PREF_NAV_SPACING, next.navSpacing)
+            .apply()
+    }
+    
+    val lazyListState = rememberLazyListState()
+    RegisterGamepadActions(
+        enabled = true,
+        onBack = {
+            navController.safePopBackStack()
+            true
+        },
+        scrollState = lazyListState,
+    )
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(canScroll = { lazyListState.canScrollBackward })
+    var isPreviewExpanded by rememberSaveable { mutableStateOf(true) }
+
+    val nestedScrollConnection = remember(isLandscape) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (!isLandscape && available.y < -4f && isPreviewExpanded) {
+                    isPreviewExpanded = false
+                }
+                return scrollBehavior.nestedScrollConnection.onPreScroll(available, source)
+            }
+
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                if (!isLandscape && available.y > 6f && !isPreviewExpanded && !lazyListState.canScrollBackward) {
+                    isPreviewExpanded = true
+                }
+                return scrollBehavior.nestedScrollConnection.onPostScroll(consumed, available, source)
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                return scrollBehavior.nestedScrollConnection.onPreFling(available)
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                return scrollBehavior.nestedScrollConnection.onPostFling(consumed, available)
+            }
+        }
+    }
+
+    // Search results land here. Both LazyColumns render the same settingsItems,
+    // so an item index inside it is the item index in either list.
+    val jumpPulse = lazyListState.searchJumpTarget(
+        owns = { it.startsWith("pers.") },
+        indexOf = { id -> PERS_ROW_ITEMS[id] }
+    )
+
+
+    val cropLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val resultUri = UCrop.getOutput(result.data!!)
+            resultUri?.let {
+                val uriString = it.toString()
+                context.saveHeaderImage(uriString)
+                customBannerUri = uriString
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar(context.getString(R.string.str_banner_updated))
+                }
+            }
+        } else {
+            pendingCropUriPath?.let { path ->
+                val file = File(path)
+                if (file.exists()) {
+                    file.delete()
+                }
+            }
+        }
+        pendingCropUriPath = null
+    }
+    
+    val colorScheme = MaterialTheme.colorScheme 
+    
+    
+    val imagePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        uri?.let { sourceUri ->
+            val mimeType = context.contentResolver.getType(sourceUri) ?: ""
+            val isVideo = mimeType.startsWith("video/")
+            val isGif = mimeType == "image/gif"
+            val isVideoOrGif = isVideo || isGif
+    
+
+            var sizeBytes = 0L
+            context.contentResolver.query(sourceUri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (sizeIndex != -1) {
+                        sizeBytes = cursor.getLong(sizeIndex)
+                    }
+                }
+            }
+            val maxSize = 50 * 1024 * 1024L
+            if (sizeBytes > maxSize) {
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar(context.getString(R.string.str_max_video_size))
+                }
+                return@let
+            }
+    
+
+            if (isVideo) {
+                var durationMs = 0L
+                val retriever = MediaMetadataRetriever()
+                try {
+                    retriever.setDataSource(context, sourceUri)
+                    val timeString = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                    durationMs = timeString?.toLongOrNull() ?: 0L
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                } finally {
+                    retriever.release()
+                }
+    
+                if (durationMs > 30000L) {
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar(context.getString(R.string.str_video_too_long))
+                    }
+                    return@let
+                }
+            }
+    
+
+            if (isVideoOrGif) {
+
+                coroutineScope.launch {
+                    val extension = if (isVideo) "mp4" else "gif"
+                    val savedUriString = context.saveMediaDirectly(sourceUri, extension)
+                    
+                    if (savedUriString != null) {
+                        context.saveHeaderImage(savedUriString)
+                        customBannerUri = savedUriString
+                        snackbarHostState.showSnackbar(context.getString(R.string.str_pick_media_success))
+                    } else {
+                        snackbarHostState.showSnackbar(context.getString(R.string.str_pick_media_fail))
+                    }
+                }
+            } else {
+
+                val bannerDir = File(context.filesDir, "banners")
+                if (!bannerDir.exists()) bannerDir.mkdirs()
+                
+                val destinationFile = File(bannerDir, "banner_${System.currentTimeMillis()}.jpg")
+                pendingCropUriPath = destinationFile.absolutePath 
+                val destinationUri = Uri.fromFile(destinationFile)
+                
+                val options = UCrop.Options().apply {
+                    setHideBottomControls(false)
+                    setFreeStyleCropEnabled(false)
+                    setToolbarColor(colorScheme.surface.toArgb()) 
+                    setToolbarWidgetColor(colorScheme.onSurface.toArgb()) 
+                    setRootViewBackgroundColor(colorScheme.surfaceContainerLowest.toArgb()) 
+                    setActiveControlsWidgetColor(colorScheme.primary.toArgb()) 
+                    setCropFrameColor(colorScheme.primary.toArgb()) 
+                    setCropGridColor(colorScheme.primary.copy(alpha = 0.5f).toArgb()) 
+                    setDimmedLayerColor(colorScheme.scrim.copy(alpha = 0.6f).toArgb())
+                }
+                
+                val uCrop = UCrop.of(sourceUri, destinationUri)
+                    .withAspectRatio(20f, 9f)
+                    .withOptions(options)
+    
+                cropLauncher.launch(uCrop.getIntent(context))
+            }
+        }
+    }
+    
+    
+    // Theme edits are staged here and only written to SharedPreferences when
+    // the user saves, so a choice can be previewed and then backed out of.
+    val savedSettings = remember { ThemeController.getAppSettings(context) }
+    var currentColorMode by remember { mutableStateOf(savedSettings.colorMode) }
+    var currentKeyColor by remember { mutableIntStateOf(savedSettings.keyColor) }
+    var currentColorSpec by remember { mutableStateOf(savedSettings.colorSpec) }
+
+    // One scheme cache for every swatch on the screen, so the accent row derives
+    // each scheme once for the whole screen rather than once per swatch. It is
+    // keyed on the spec, so changing the spec drops every entry.
+    //
+    // Deliberately a plain map, not a SnapshotStateMap. Every swatch reads this
+    // on each composition, so a snapshot map both records a read per lookup and
+    // publishes a write per miss; 16 swatches filling it on a theme flip meant
+    // 16 invalidations of every reader, and each swatch recomposed again for
+    // every other swatch's insert.
+    //
+    // Entries are keyed on the mode as well as the seed, so a dark scheme is
+    // never handed back for a light seed. That is the bug this exists to hold:
+    // the seed alone does not distinguish the two, so without the mode bit the
+    // swatches already on screen kept the old mode's colours until something
+    // else invalidated them. Keying per mode rather than clearing on mode
+    // change means only the first flip in each direction pays the derivation.
+    val swatchSchemeCache = remember(currentColorSpec) {
+        HashMap<SwatchKey, ColorScheme>()
+    }
+
+    // The save bar is gone, so the theme writes itself as each choice is made, the same
+    // way the banner/blur/scroll toggles below already do.
+    fun persistTheme(mode: ColorMode, key: Int, spec: ColorEngine) {
+        coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            prefs.edit()
+                .putInt("key_color", key)
+                .putInt("color_mode", mode.value)
+                .putString("color_spec", spec.persistedName)
+                .commit()
+        }
+    }
+
+    val onColorModeChange = { mode: ColorMode ->
+        currentColorMode = mode
+        persistTheme(mode, currentKeyColor, currentColorSpec)
+    }
+    val onKeyColorChange = { key: Int ->
+        currentKeyColor = key
+        persistTheme(currentColorMode, key, currentColorSpec)
+    }
+    val onColorSpecChange = { spec: ColorEngine ->
+        currentColorSpec = spec
+        persistTheme(currentColorMode, currentKeyColor, spec)
+    }
+
+    val isDark = currentColorMode.getDarkThemeValue(isSystemInDarkTheme())
+    val amoledMode = currentColorMode == ColorMode.DARKAMOLED
+
+
+    Scaffold(
+        modifier = Modifier.nestedScroll(nestedScrollConnection),
+        snackbarHost = { ZenithSnackbarHost(snackbarHostState) },
+        topBar = {
+            PaletteTopAppBar(
+                onBack = { navController.safePopBackStack() },
+            scrollBehavior = scrollBehavior
+            )
+        },
+        contentColor = ScaffoldContentColor(),
+        containerColor = ScaffoldContainerColor(MaterialTheme.colorScheme.surface)
+    ) { innerPadding -> 
+        if (isLandscape) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(0.4f)
+                        .fillMaxHeight()
+                        .padding(top = innerPadding.calculateTopPadding()), 
+                    contentAlignment = Alignment.Center
+                ) {
+                    HalfMockPreview(
+                        keyColor = currentKeyColor,
+                        colorSpec = currentColorSpec,
+                        isDark = isDark,
+                        isAmoled = amoledMode,
+                        personalization = personalization,
+                        isBannerEnabled = isBannerEnabled,
+                        isBlurEnabled = isBlurEnabled,
+                        gradientAlpha = bannerGradientAlpha,
+                        customBannerUri = customBannerUri,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                LazyColumn(
+                    state = lazyListState,
+                    modifier = Modifier
+                        .weight(0.6f) 
+                        .fillMaxHeight()
+                        .hazePageSource()
+                        .gamepadScreenEntry(scopeKey = "subscreen:color_palette"),
+                    contentPadding = PaddingValues(
+                        top = innerPadding.calculateTopPadding() + 8.dp, 
+                        bottom = 16.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(24.dp)
+                ) {
+                    settingsItems(
+                        currentColorMode = currentColorMode,
+                        currentKeyColor = currentKeyColor,
+                        currentColorSpec = currentColorSpec,
+                        swatchSchemeCache = swatchSchemeCache,
+                        isDark = isDark,
+                        isBannerEnabled = isBannerEnabled,
+                        bannerGradientAlpha = bannerGradientAlpha,
+                        customBannerUri = customBannerUri,
+                        isBlurEnabled = isBlurEnabled,
+                        isLandscape = true,
+                        prefs = prefs,
+                        jumpPulse = jumpPulse,
+                        onColorModeChange = onColorModeChange,
+                        onKeyColorChange = onKeyColorChange,
+                        onColorSpecChange = onColorSpecChange,
+                        onBannerEnabledChange = { 
+                            isBannerEnabled = it 
+                            coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) { context.setBannerImageEnabled(it) }
+                        },
+                        onBannerGradientAlphaChange = {
+                            bannerGradientAlpha = it
+                            coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) { context.setBannerGradientAlpha(it) }
+                        },
+                        onBannerUpdated = { customBannerUri = it },
+                        onBlurEnabledChange = {
+                            isBlurEnabled = it
+                            // Enabling the blur clears the navbar tint, so the stored value
+                            // cannot outlive the state that invalidated it.
+                            if (it) {
+                                personalization = personalization.copy(vibrantNav = false)
+                                persistPersonalization(personalization)
+                            }
+                            coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) { prefs.edit().putBoolean("expressive_blur_ui", it).commit() }
+                        },
+                        useScrollAnimation = useScrollAnimation,
+                        onUseScrollAnimationChange = {
+                            useScrollAnimation = it
+                            coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) { prefs.edit().putBoolean("use_scroll_animation", it).commit() }
+                        },
+                        imagePicker = imagePicker,
+                        personalization = personalization,
+                        onPersonalizationChange = { next ->
+                            personalization = next
+                            persistPersonalization(next)
+                        },
+                        context = context,
+                        snackbarHostState = snackbarHostState,
+                        coroutineScope = coroutineScope
+                    )
+                }
+            }
+        } else {
+            // The preview lives outside the list, so it stays put while the settings scroll
+            // underneath it; the list's own offset is what collapses it.
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = innerPadding.calculateTopPadding())
+            ) {
+                PinnedPreviewHeader(
+                    expanded = isPreviewExpanded,
+                    personalization = personalization,
+                    onToggle = { isPreviewExpanded = !isPreviewExpanded },
+                    onExpand = { isPreviewExpanded = true },
+                    onCollapse = { isPreviewExpanded = false },
+                    keyColor = currentKeyColor,
+                    colorSpec = currentColorSpec,
+                    isDark = isDark,
+                    isAmoled = amoledMode,
+                    isBannerEnabled = isBannerEnabled,
+                    gradientAlpha = bannerGradientAlpha,
+                    customBannerUri = customBannerUri,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    shape = azShapeCorners(topStart = 28.dp, topEnd = 28.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    tonalElevation = 1.dp
+                ) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        SheetHandle(
+                            onToggle = { isPreviewExpanded = !isPreviewExpanded },
+                            onExpand = { isPreviewExpanded = true },
+                            onCollapse = { isPreviewExpanded = false }
+                        )
+        
+                        LazyColumn(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .hazePageSource()
+                                .gamepadScreenEntry(scopeKey = "subscreen:color_palette"),
+                            state = lazyListState,
+                            contentPadding = PaddingValues(
+                                top = 4.dp,
+                                bottom = 16.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            settingsItems(
+                            currentColorMode = currentColorMode,
+                            currentKeyColor = currentKeyColor,
+                            currentColorSpec = currentColorSpec,
+                            swatchSchemeCache = swatchSchemeCache,
+                            isDark = isDark,
+                            isBannerEnabled = isBannerEnabled,
+                            isBlurEnabled = isBlurEnabled,
+                            bannerGradientAlpha = bannerGradientAlpha,
+                            customBannerUri = customBannerUri,
+                            isLandscape = false,
+                            prefs = prefs,
+                            jumpPulse = jumpPulse,
+                            onColorModeChange = onColorModeChange,
+                            onKeyColorChange = onKeyColorChange,
+                            onColorSpecChange = onColorSpecChange,
+                            onBannerEnabledChange = { 
+                                isBannerEnabled = it 
+                                coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) { context.setBannerImageEnabled(it) }
+                            },
+                            onBannerGradientAlphaChange = {
+                                bannerGradientAlpha = it
+                                coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) { context.setBannerGradientAlpha(it) }
+                            },
+                            onBlurEnabledChange = {
+                                isBlurEnabled = it
+                                // Enabling the blur clears the navbar tint, so the stored value
+                                // cannot outlive the state that invalidated it.
+                                if (it) {
+                                    personalization = personalization.copy(vibrantNav = false)
+                                    persistPersonalization(personalization)
+                                }
+                                coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) { prefs.edit().putBoolean("expressive_blur_ui", it).commit() }
+                            },
+                            useScrollAnimation = useScrollAnimation,
+                            onUseScrollAnimationChange = {
+                                useScrollAnimation = it
+                                coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) { prefs.edit().putBoolean("use_scroll_animation", it).commit() }
+                            },
+                            onBannerUpdated = { customBannerUri = it },
+                            imagePicker = imagePicker,
+                            personalization = personalization,
+                            onPersonalizationChange = { next ->
+                                personalization = next
+                                persistPersonalization(next)
+                            },
+                            context = context,
+                            snackbarHostState = snackbarHostState,
+                            coroutineScope = coroutineScope
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Which string names each [ColorEngine] option; the enum itself stays display-free. */
+private fun specLabelRes(spec: ColorEngine): Int = when (spec) {
+    ColorEngine.MaterialYou -> R.string.spec_material_you
+    ColorEngine.MaterialExpressive -> R.string.spec_material_expressive
+
+}
+
+/**
+ * Which LazyColumn item holds each searchable Personalization row. Positional:
+ * settingsItems builds the list inline and the rows carry no keys. Both
+ * LazyColumns render settingsItems as their whole content, so the index inside
+ * it is the index in either list.
+ */
+private val PERS_ROW_ITEMS: Map<String, Int> = mapOf(
+    "pers.section_colors" to 0,
+    "pers.accent_intensity" to 0,
+    "pers.roundness" to 1,
+    "pers.text_scale" to 1,
+    "pers.section_interface" to 2,
+    "pers.nav_shape" to 2,
+    "pers.nav_spacing" to 2,
+    "pers.nav_size" to 2,
+    "pers.nav_vibrant" to 2,
+    "pers.nav_labels" to 2,
+    "pers.banner" to 2,
+    "pers.blur" to 2,
+    "pers.scroll_animation" to 2
+)
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+private fun androidx.compose.foundation.lazy.LazyListScope.settingsItems(
+    currentColorMode: ColorMode,
+    currentKeyColor: Int,
+    currentColorSpec: ColorEngine,
+    swatchSchemeCache: HashMap<SwatchKey, ColorScheme>,
+    isDark: Boolean,
+    isBannerEnabled: Boolean,
+    bannerGradientAlpha: Float,
+    customBannerUri: String?,
+    useScrollAnimation: Boolean,
+    onUseScrollAnimationChange: (Boolean) -> Unit,
+    isBlurEnabled: Boolean,
+    isLandscape: Boolean,
+    prefs: android.content.SharedPreferences,
+    jumpPulse: String?,
+    onColorModeChange: (ColorMode) -> Unit,
+    onKeyColorChange: (Int) -> Unit,
+    onColorSpecChange: (ColorEngine) -> Unit,
+    onBannerEnabledChange: (Boolean) -> Unit,
+    onBannerGradientAlphaChange: (Float) -> Unit,
+    onBannerUpdated: (String?) -> Unit,
+    onBlurEnabledChange: (Boolean) -> Unit,
+    imagePicker: androidx.activity.result.ActivityResultLauncher<PickVisualMediaRequest>,
+    personalization: Personalization,
+    onPersonalizationChange: (Personalization) -> Unit,
+    context: Context,
+    snackbarHostState: SnackbarHostState,
+    coroutineScope: kotlinx.coroutines.CoroutineScope
+) {
+    // Everything that decides *which colours* exist sits together: the spec the
+    // palette is generated from, and the accent picked out of it. Intensity and
+    // contrast live further down, in the Colour group inside LookAndFeelSection.
+    item {
+        Column {
+            LookAndFeelSection(
+                pers = personalization,
+                onPersonalizationChange = onPersonalizationChange,
+                activeId = jumpPulse,
+                entryId = "pers.section_colors",
+                // Colour controls live in the section's Colour group so the spec
+                // picker, the accent swatches, accent intensity and contrast read as
+                // one cluster instead of being split by the section boundary.
+                colorSpecContent = {
+                    ConnectedToggleRow(
+                        options = ColorEngine.entries,
+                        selected = currentColorSpec,
+                        label = { stringResource(specLabelRes(it)) },
+                        onSelect = onColorSpecChange,
+                        // Kept on the older elevation-derived surface rather than the
+                        // shared default: this row sits in its own group.
+                        containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp),
+                        focusKeyPrefix = "pers.color_spec"
+                    )
+                },
+                accentSwatchContent = {
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer { alpha = 0.99f }
+                            .drawWithContent {
+                                drawContent()
+                                drawRect(
+                                    brush = Brush.horizontalGradient(
+                                        0.0f to Color.Transparent,
+                                        0.08f to Color.Black,
+                                        0.92f to Color.Black,
+                                        1.0f to Color.Transparent
+                                    ),
+                                    blendMode = BlendMode.DstIn
+                                )
+                            },
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        item {
+                            ColorButton(
+                                color = Color.Unspecified,
+                                isSelected = currentKeyColor == 0,
+                                isDark = isDark,
+                                colorSpec = currentColorSpec,
+                                schemeCache = swatchSchemeCache,
+                                onClick = { onKeyColorChange(0) },
+                                focusKey = "pers.swatch.dynamic"
+                            )
+                        }
+
+                        items(keyColorOptions) { colorInt ->
+                            ColorButton(
+                                color = Color(colorInt),
+                                isSelected = currentKeyColor == colorInt,
+                                isDark = isDark,
+                                colorSpec = currentColorSpec,
+                                schemeCache = swatchSchemeCache,
+                                onClick = { onKeyColorChange(colorInt) },
+                                focusKey = "pers.swatch.$colorInt"
+                            )
+                        }
+                    }
+                },
+                colorModeContent = {
+                    val options = listOf(
+                        ColorMode.SYSTEM, ColorMode.LIGHT, ColorMode.DARK, ColorMode.DARKAMOLED
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
+                    ) {
+                        options.forEachIndexed { index, mode ->
+                            ToggleButton(
+                                checked = currentColorMode == mode,
+                                onCheckedChange = { checked ->
+                                    if (checked) onColorModeChange(mode)
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .semantics { role = Role.RadioButton }
+                                    .gamepadFocusOutline(
+                                        shape = azShape(14.dp),
+                                        focusKey = "pers.color_mode.${mode.name}",
+                                        onActivate = { onColorModeChange(mode) }
+                                    ),
+                                shapes = when (index) {
+                                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                    options.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                                },
+                                colors = ToggleButtonDefaults.toggleButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = when (mode) {
+                                        ColorMode.SYSTEM -> Icons.Filled.Brightness4
+                                        ColorMode.LIGHT -> Icons.Filled.Brightness7
+                                        ColorMode.DARK -> Icons.Filled.Brightness3
+                                        ColorMode.DARKAMOLED -> Icons.Filled.Brightness1
+                                    },
+                                    contentDescription = mode.name
+                                )
+                            }
+                        }
+                    }
+                }
+            )
+        }
+    }
+
+    item {
+        SettingsGroup(
+            titleRes = R.string.pers_shape_group,
+            icon = Icons.Filled.RoundedCorner
+        ) {
+            ExpressiveColumn(
+                content = buildList {
+                    add {
+                        CardItem {
+                            JumpRow(activeId = jumpPulse, entryId = "pers.roundness") {
+                                // One child, stacked: JumpRow's content is a Box, so a second
+                                // child would sit on top of the first instead of under it.
+                                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                    LabeledControl(
+                                        icon = Icons.Filled.BorderAll,
+                                        label = stringResource(R.string.pers_roundness)
+                                    )
+                                    ConnectedToggleRow(
+                                        options = CornerStyle.entries,
+                                        selected = personalization.cornerStyle,
+                                        label = { stringResource(it.labelRes) },
+                                        onSelect = { style ->
+                                            onPersonalizationChange(
+                                                personalization.copy(cornerStyle = style)
+                                            )
+                                        },
+                                        focusKeyPrefix = "pers.roundness"
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    add {
+                        CardItem {
+                            JumpRow(activeId = jumpPulse, entryId = "pers.text_scale") {
+                            LabeledSlider(
+                                icon = Icons.Filled.FormatSize,
+                                label = stringResource(R.string.pers_text_scale),
+                                value = personalization.textScale,
+                                valueText = "${(personalization.textScale * 100).toInt()}%",
+                                valueRange = 0.85f..1.3f,
+                                steps = 8,
+                                resetDefault = 1f,
+                                commitOnRelease = true,
+                                valueTextOf = { "${(it * 100).toInt()}%" },
+                                onValueChange = { onPersonalizationChange(personalization.copy(textScale = it)) }
+                            )
+                            }
+                        }
+                    }
+                }
+            )
+        }
+    }
+
+    item {
+        val enter = expandVertically(animationSpec = tween(400)) + fadeIn(animationSpec = tween(400))
+        val exit = shrinkVertically(animationSpec = tween(400)) + fadeOut(animationSpec = tween(400))
+    
+        SettingsGroup(
+            titleRes = R.string.str_interface,
+            icon = Icons.Filled.AutoAwesome,
+            activeId = jumpPulse,
+            entryId = "pers.section_interface"
+        ) {
+            ExpressiveColumn(
+                content = buildList {
+                    // The bar style is no longer user-selectable: the floating pill is
+                    // the only style, so there is no toggle here.
+                    add {
+                        CardItem {
+                            JumpRow(activeId = jumpPulse, entryId = "pers.nav_shape") {
+                                LabeledSlider(
+                                                                icon = Icons.Filled.HorizontalRule,
+                                                                label = stringResource(R.string.pers_nav_shape),
+                                                                value = personalization.navRadius,
+                                                                valueText = cornerLabel(personalization.navRadius, NAV_CENTER),
+                                                                valueRange = 0f..1f,
+                                                                steps = 0,
+                                                                snapTo = NAV_CENTER,
+                                                                resetDefault = NAV_CENTER,
+                                                                onValueChange = { onPersonalizationChange(personalization.copy(navRadius = it)) }
+                                                            )
+                            }
+                        }
+                    }
+    
+                    add {
+                        CardItem {
+                            JumpRow(activeId = jumpPulse, entryId = "pers.nav_spacing") {
+                                LabeledSlider(
+                                                                value = personalization.navSpacing,
+                                                                onValueChange = {
+                                                                    onPersonalizationChange(personalization.copy(navSpacing = it))
+                                                                },
+                                                                valueText = "${(personalization.navSpacing * 100).toInt()}%",
+                                                                valueRange = NAV_SPACING_MIN..NAV_SPACING_MAX,
+                                                                icon = Icons.Filled.HorizontalRule,
+                                                                label = stringResource(R.string.pers_nav_spacing),
+                                                                steps = 0,
+                                                                snapTo = 1f,
+                                                                resetDefault = 1f,
+                                                                commitOnRelease = true,
+                                                                valueTextOf = { "${(it * 100).toInt()}%" }
+                                                            )
+                            }
+                        }
+                    }
+
+                    add {
+                        CardItem {
+                            JumpRow(activeId = jumpPulse, entryId = "pers.nav_size") {
+                                LabeledSlider(
+                                                                value = personalization.navScale,
+                                                                onValueChange = {
+                                                                    onPersonalizationChange(personalization.copy(navScale = it))
+                                                                },
+                                                                valueText = "${navScalePercent(personalization.navScale)}%",
+                                                                valueRange = NAV_SCALE_MIN..NAV_SCALE_MAX,
+                                                                icon = Icons.Outlined.Straighten,
+                                                                label = stringResource(R.string.pers_nav_size),
+                                                                steps = 0,
+                                                                snapTo = NAV_SCALE_DEFAULT,
+                                                                resetDefault = NAV_SCALE_DEFAULT,
+                                                                // Resizing the bar on every drag frame re-lays out four
+                                                                // icons plus the row, which stutters; the release
+                                                                // applies it once.
+                                                                commitOnRelease = true,
+                                                                valueTextOf = { "${navScalePercent(it)}%" }
+                                                            )
+                            }
+                        }
+                    }
+
+                    add {
+                        // The blur already owns the bar's colour, so a tinted bar
+                        // under it is invisible at best. Blur wins and the switch
+                        // turns itself off rather than refusing the change.
+                        val vibrantBlocked = isBlurEnabled
+                        JumpRow(activeId = jumpPulse, entryId = "pers.nav_vibrant") {
+                            ExpressiveSwitchItem(
+                                                        icon = Icons.Outlined.Palette,
+                                                        title = stringResource(R.string.pers_nav_vibrant),
+                                                        summary = stringResource(
+                                                            if (vibrantBlocked) R.string.pers_nav_vibrant_summary_blur
+                                                            else R.string.pers_nav_vibrant_summary
+                                                        ),
+                                                        checked = personalization.vibrantNav && !vibrantBlocked,
+                                                        enabled = !vibrantBlocked,
+                                                        onDisabledClick = {
+                                                            coroutineScope.launch {
+                                                                snackbarHostState.showSnackbar(
+                                                                    context.getString(R.string.pers_nav_vibrant_blur_conflict)
+                                                                )
+                                                            }
+                                                        },
+                                                        onCheckedChange = {
+                                                            onPersonalizationChange(personalization.copy(vibrantNav = it))
+                                                        }
+                                                    )
+                        }
+                    }
+
+                    add {
+                        CardItem {
+                            JumpRow(activeId = jumpPulse, entryId = "pers.nav_labels") {
+                                // One child, stacked: JumpRow's content is a Box, so a second
+                                // child would sit on top of the first instead of under it.
+                                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                    LabeledControl(Icons.Filled.Label, stringResource(R.string.pers_nav_labels))
+                                    ConnectedToggleRow(
+                                        options = NavLabelMode.entries,
+                                        selected = personalization.navLabels,
+                                        label = { stringResource(it.labelRes) },
+                                        onSelect = { onPersonalizationChange(personalization.copy(navLabels = it)) },
+                                        focusKeyPrefix = "pers.nav_labels"
+                                    )
+                                }
+                            }
+                        }
+                    }
+    
+                    add {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            JumpRow(activeId = jumpPulse, entryId = "pers.banner") {
+                                ExpressiveSwitchItem(
+                                    icon = Icons.Outlined.Image,
+                                    title = stringResource(R.string.str_enable_banner),
+                                    checked = isBannerEnabled,
+                                    onCheckedChange = onBannerEnabledChange
+                                )
+                            }
+
+                            AnimatedVisibility(visible = isBannerEnabled, enter = enter, exit = exit) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = { imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .gamepadFocusOutline(
+                                                shape = azShape(14.dp),
+                                                focusKey = "pers.banner.pick_media",
+                                                onActivate = { imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) }
+                                            ),
+                                        shape = RoundedCornerShape(topStart = 50.dp, bottomStart = 50.dp, topEnd = 0.dp, bottomEnd = 0.dp),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    ) {
+                                        Icon(Icons.Filled.Image, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(stringResource(R.string.str_pick_media), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = {
+                                            context.clearHeaderImage()
+                                            onBannerUpdated(null)
+                                            coroutineScope.launch {
+                                                snackbarHostState.showSnackbar(context.getString(R.string.str_default_banner_toast))
+                                            }
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .gamepadFocusOutline(
+                                                shape = azShape(14.dp),
+                                                focusKey = "pers.banner.default",
+                                                onActivate = {
+                                                    context.clearHeaderImage()
+                                                    onBannerUpdated(null)
+                                                    coroutineScope.launch {
+                                                        snackbarHostState.showSnackbar(context.getString(R.string.str_default_banner_toast))
+                                                    }
+                                                }
+                                            ),
+                                        shape = RoundedCornerShape(topStart = 0.dp, bottomStart = 0.dp, topEnd = 50.dp, bottomEnd = 50.dp),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    ) {
+                                        Icon(Icons.Filled.Restore, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(stringResource(R.string.default_label), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                }
+                            }
+
+                            AnimatedVisibility(visible = isBannerEnabled, enter = enter, exit = exit) {
+                                val m = currentPersonalization().cornerMultiplier
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                        .padding(top = 2.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(middleShape(m))
+                                            .background(MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp))
+                                            .padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                                    ) {
+                                        LabeledControl(
+                                            Icons.Filled.Contrast,
+                                            stringResource(R.string.str_adjust_gradient)
+                                        )
+
+                                        Column {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = stringResource(R.string.str_gradient_opacity),
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    Text(
+                                                        text = stringResource(R.string.str_bannergradientalpha_100_toint, (bannerGradientAlpha * 100).toInt()),
+                                                        style = MaterialTheme.typography.labelLarge,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.primary
+                                                    )
+                                                    IconButton(
+                                                        onClick = { onBannerGradientAlphaChange(0.5f) },
+                                                        modifier = Modifier
+                                                            .size(28.dp)
+                                                            .gamepadFocusOutline(
+                                                                shape = CircleShape,
+                                                                focusKey = "pers.gradient.reset",
+                                                                onActivate = { onBannerGradientAlphaChange(0.5f) }
+                                                            )
+                                                    ) {
+                                                        Icon(
+                                                            Icons.Filled.Restore,
+                                                            contentDescription = stringResource(R.string.reset),
+                                                            modifier = Modifier.size(18.dp),
+                                                            tint = MaterialTheme.colorScheme.primary
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            ZenithSlider(
+                                                value = bannerGradientAlpha,
+                                                onValueChange = { newValue ->
+                                                    val snapped = if (newValue in 0.47f..0.53f) 0.5f else newValue
+                                                    onBannerGradientAlphaChange(snapped)
+                                                },
+                                                onValueChangeFinished = {},
+                                                valueRange = 0f..1f,
+                                                modifier = Modifier.fillMaxWidth().height(40.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+    
+                    add {
+                        JumpRow(activeId = jumpPulse, entryId = "pers.blur") {
+                            ExpressiveSwitchItem(
+                                                        icon = Icons.Filled.BlurOn,
+                                                        title = stringResource(R.string.str_expressive_blur),
+                                                        summary = stringResource(R.string.str_expressive_blur_summary),
+                                                        checked = isBlurEnabled,
+                                                        onCheckedChange = onBlurEnabledChange
+                                                    )
+                        }
+                    }
+                    add {
+                        JumpRow(activeId = jumpPulse, entryId = "pers.scroll_animation") {
+                            ExpressiveSwitchItem(
+                                                        icon = Icons.Filled.SwipeRight,
+                                                        title = stringResource(R.string.str_use_scroll_animation),
+                                                        summary = stringResource(R.string.str_use_scroll_animation_summary),
+                                                        checked = useScrollAnimation,
+                                                        onCheckedChange = onUseScrollAnimationChange
+                                                    )
+                        }
+                    }
+                }
+            )
+        }
+    }
+}
+
+private val MOCK_W = 190.dp
+private val MOCK_H = 396.dp
+
+/**
+ * Identity of one cached swatch scheme. The seed alone is not enough: the same
+ * seed produces a different scheme in dark and light, so the mode has to be part
+ * of the key or a dark entry gets served for a light swatch.
+ *
+ * [DYNAMIC_SEED] is not a real ARGB value -- swatch seeds are opaque
+ * `0xFF......` colours -- so the dynamic swatch can never collide with one.
+ */
+private const val DYNAMIC_SEED = 0
+
+private data class SwatchKey(val seed: Int, val isDark: Boolean)
+
+// Radius the mock dialog's scrim applies to the content behind it. Big enough to
+// visibly smear the banner text, small enough that the mock stays readable.
+private val MOCK_DIALOG_BLUR = 8.dp
+
+// How far the mock scales up when the card is tapped to frame the banner. 2.2x fills the
+// card width from the mock's top edge, which puts the banner dead centre in the frame.
+
+@Composable
+private fun SheetHandle(
+    onToggle: () -> Unit,
+    onExpand: () -> Unit,
+    onCollapse: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .draggable(
+                orientation = Orientation.Vertical,
+                state = rememberDraggableState { delta ->
+                    if (delta < -4f) onCollapse()
+                    else if (delta > 4f) onExpand()
+                }
+            )
+            // A drag handle is a touch affordance; the mock card below is the d-pad stop that
+            // expands the preview.
+            .focusProperties { canFocus = false }
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onToggle
+            )
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 36.dp, height = 4.dp)
+                .clip(RoundedCornerShape(percent = 50))
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+        )
+    }
+}
+
+@Composable
+fun PaletteTopAppBar(
+    onBack: () -> Unit,
+    scrollBehavior: TopAppBarScrollBehavior
+) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .gamepadNotFocusable()
+            .appBarFade(colorScheme.surface, scrollBehavior.state.overlappedFraction)
+            .statusBarsPadding()
+    ) {
+        TopAppBar(
+            title = { 
+                Text(
+                    text = stringResource(R.string.personalization_title),
+                    fontWeight = FontWeight.Bold
+                ) 
+            },
+            navigationIcon = {
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier.focusProperties { canFocus = false }
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
+                }
+            },       
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent,
+                scrolledContainerColor = Color.Transparent
+            ),
+            windowInsets = WindowInsets(0, 0, 0, 0),
+            scrollBehavior = scrollBehavior
+        )
+    }
+}
+
+/**
+ * The mock preview.
+ *
+ * Expanded, the frame is a tall portrait phone showing the whole mock screen.
+ * Collapsed, the same frame shrinks to a small card: the mock keeps its full
+ * 190x396dp layout (see [MockScreen]) and is only scaled down, so nothing in it
+ * is squeezed or re-laid out when the preview collapses.
+ */
+@Composable
+private fun PinnedPreviewHeader(
+    expanded: Boolean,
+    personalization: Personalization,
+    onToggle: () -> Unit,
+    onExpand: () -> Unit,
+    onCollapse: () -> Unit,
+    keyColor: Int,
+    colorSpec: ColorEngine,
+    isDark: Boolean,
+    isAmoled: Boolean,
+    isBannerEnabled: Boolean = true,
+    isBlurEnabled: Boolean = false,
+    gradientAlpha: Float = 1f,
+    customBannerUri: String? = null,
+    modifier: Modifier = Modifier
+) {
+    val scheme = mockColorScheme(
+        keyColor = keyColor,
+        colorSpec = colorSpec,
+        isDark = isDark,
+        isAmoled = isAmoled,
+        personalization = personalization
+    )
+
+    BoxWithConstraints(modifier = modifier) {
+        val mockAspect = MOCK_H / MOCK_W
+        val expandedH = minOf(maxWidth * 1.12f, 430.dp).coerceAtLeast(320.dp)
+        val collapsedH = minOf(maxWidth * 0.42f, 165.dp).coerceAtLeast(140.dp)
+        // One progress value drives both axes, so the frame keeps the mock's
+        // aspect ratio for the whole transition, including the spring
+        // overshoot. Animating height and width with separate springs changed
+        // the ratio mid-flight and made the fit scale in MockScreen wobble.
+        val progress by animateFloatAsState(
+            targetValue = if (expanded) 1f else 0f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessMediumLow,
+                visibilityThreshold = 0.0005f
+            ),
+            label = "previewProgress"
+        )
+        val height = lerp(collapsedH, expandedH, progress)
+        val frameWidth = (height / mockAspect).coerceIn(70.dp, maxWidth * 0.88f)
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(height)
+                .draggable(
+                    orientation = Orientation.Vertical,
+                    state = rememberDraggableState { delta ->
+                        if (delta < -4f) onCollapse()
+                        else if (delta > 4f) onExpand()
+                    }
+                )
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            val cornerScale = frameWidth / (420.dp / mockAspect)
+            val base = (20.dp * cornerScale).coerceAtLeast(10.dp)
+            val scaledShape = azShape(base)
+            MockCardFrame(
+                scheme = scheme,
+                shape = scaledShape,
+                modifier = Modifier
+                    .width(frameWidth)
+                    .fillMaxHeight()
+                    // The preview card has a click but no activation callback, so
+                    // Cross published a null callback and did nothing. Wire the
+                    // same toggle the tap runs.
+                    .gamepadFocusOutline(
+                        shape = scaledShape,
+                        register = true,
+                        focusKey = "pers.preview.toggle",
+                        onActivate = onToggle
+                    ),
+                // Passed to the Surface itself rather than chained as .clickable() on the
+                // modifier: Surface(onClick) applies its click handling after its shape
+                // clip, so the ripple follows the rounded corners.
+                onClick = onToggle
+            ) {
+                MockScreen(
+                    scheme = scheme,
+                    personalization = personalization,
+                    isBannerEnabled = isBannerEnabled,
+                    isBlurEnabled = isBlurEnabled,
+                    gradientAlpha = gradientAlpha,
+                    customBannerUri = customBannerUri
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Landscape preview: the same mock as portrait, but only the top half of the
+ * phone. The mock is laid out at its full portrait size and the frame cuts it,
+ * so nothing is re-laid out or squeezed.
+ */
+@Composable
+private fun HalfMockPreview(
+    keyColor: Int,
+    colorSpec: ColorEngine,
+    isDark: Boolean,
+    isAmoled: Boolean,
+    personalization: Personalization,
+    isBannerEnabled: Boolean,
+    isBlurEnabled: Boolean,
+    gradientAlpha: Float,
+    customBannerUri: String?,
+    modifier: Modifier = Modifier
+) {
+    val scheme = mockColorScheme(
+        keyColor = keyColor,
+        colorSpec = colorSpec,
+        isDark = isDark,
+        isAmoled = isAmoled,
+        personalization = personalization
+    )
+
+    BoxWithConstraints(modifier = modifier.clipToBounds()) {
+        val mockAspect = MOCK_H / MOCK_W
+        val frameWidth = minOf(maxWidth * 0.85f, maxHeight * 2f / mockAspect)
+        val fullHeight = frameWidth * mockAspect
+        // Frame sengaja lebih tinggi dari pane: border, sudut, dan shadow
+        // bawahnya jatuh di luar clip, jadi mock tembus sampai tepi layar.
+        val frameHeight = maxOf(fullHeight, maxHeight + 8.dp)
+
+        val cornerScale = frameWidth / (420.dp / mockAspect)
+        val base = (20.dp * cornerScale).coerceAtLeast(10.dp)
+        val shape = azShapeCorners(topStart = base, topEnd = base, bottomStart = 0.dp, bottomEnd = 0.dp)
+
+        // unbounded: biar frame yang lebih tinggi dari pane tetap top-anchored,
+        // tidak di-center atau di-coerce ke tinggi pane.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .wrapContentSize(Alignment.TopCenter, unbounded = true)
+        ) {
+            MockCardFrame(
+                scheme = scheme,
+                shape = shape,
+                modifier = Modifier.size(frameWidth, frameHeight)
+            ) {
+                Box(Modifier.fillMaxSize()) {
+                    MockScreen(
+                        scheme = scheme,
+                        personalization = personalization,
+                        isBannerEnabled = isBannerEnabled,
+                        isBlurEnabled = isBlurEnabled,
+                        gradientAlpha = gradientAlpha,
+                        customBannerUri = customBannerUri,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .size(frameWidth, fullHeight)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The mock's own device frame: surface, shape ramp and hairline border.
+ *
+ * With [onClick] set the frame is a clickable Surface. That has to go through
+ * Surface's own onClick overload and not Modifier.clickable on [modifier]: a
+ * modifier chained from outside runs before the Surface's shape clip, so the
+ * ripple is drawn in the unclipped rectangular bounds.
+ */
+@Composable
+private fun MockCardFrame(
+    scheme: ColorScheme,
+    shape: Shape,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    content: @Composable () -> Unit
+) {
+    // The frame follows the shape ramp, otherwise the corner controls change
+    // nothing the user can see.
+    val border = BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = 0.5f))
+    if (onClick != null) {
+        Surface(
+            onClick = onClick,
+            modifier = modifier,
+            color = scheme.surface,
+            shape = shape,
+            border = border,
+            shadowElevation = 8.dp
+        ) { content() }
+    } else {
+        Surface(
+            modifier = modifier,
+            color = scheme.surface,
+            shape = shape,
+            border = border,
+            shadowElevation = 8.dp
+        ) { content() }
+    }
+}
+
+
+/**
+ * The mock's screen contents, drawn at a fixed [MOCK_W] x [MOCK_H] and scaled by
+ * the caller. Everything here comes from the same [Personalization] state as the
+ * real UI, so the preview never lies about what a setting does.
+ */
+@Composable
+private fun MockScreen(
+    scheme: ColorScheme,
+    personalization: Personalization,
+    isBannerEnabled: Boolean,
+    isBlurEnabled: Boolean,
+    gradientAlpha: Float,
+    customBannerUri: String?,
+    modifier: Modifier = Modifier
+) {
+    // One haze state for the mock's content and the nav bar that blurs it, so
+    // the bar samples this column rather than the empty space behind the card.
+    val mockHaze = rememberHazeState()
+    BoxWithConstraints(modifier = modifier) {
+        // Fit both axes: scaling by width alone overflowed the slot vertically and
+        // cropped the bottom rows -- the navbar -- away.
+        val fit = minOf(maxWidth / MOCK_W, maxHeight / MOCK_H)
+        // The mock's two upper cards stand in for Home's profile/root InfoTiles,
+        // and the lower card stands in for its device-info card. Home authors
+        // them at 26dp, but the mock is drawn on a narrower design width and
+        // then scaled down, so the radius is scaled by the same MOCK_W / 420
+        // factor as the banner below, so both read as the same radius
+        // in the preview at every roundness setting.
+        val k = personalization.cornerMultiplier
+        val homeCardShape = personalization.widgetCorner(26.dp * (MOCK_W / 420.dp))
+        // The blur demo needs a shared parent for the content and the dialog that
+        // covers it, so the two move together under the mock's scaling transform.
+        // Nothing about the content itself changes; only the box it sits in.
+        //
+        // requiredWidth/requiredHeight, not width/height: plain width/height are
+        // clamped to the parent's constraints, so when the frame is small (collapsed)
+        // the mock was laid out squeezed into e.g. 70x140dp and then scaled down by
+        // graphicsLayer again -- shrunk twice and broken. required* ignores the
+        // incoming max, so layout is always the full MOCK_W x MOCK_H and graphicsLayer
+        // is the only thing that scales it. The box is centred in the slot, and the
+        // frame Surface's shape clip keeps the oversized layout from drawing outside.
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .requiredWidth(MOCK_W)
+                .requiredHeight(MOCK_H)
+                .graphicsLayer(
+                    scaleX = fit,
+                    scaleY = fit,
+                    transformOrigin = TransformOrigin(0.5f, 0.5f)
+                )
+        ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                // The nav bar blurs this column, so it has to be a haze source.
+                .hazeSource(mockHaze)
+                // Padding does not depend on the collapsed/expanded state: the
+                // content is only scaled by the parent, so changing it here made
+                // the mock snap upward on the first collapse frame.
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.app_name),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = scheme.onSurface,
+                    modifier = Modifier.padding(start = 2.dp)
+                )
+            }
+
+            // The banner sits exactly where Home's does: below the app name,
+            // filling the width, with the status/pid pills at the bottom start.
+            // The mock is rendered at a narrower design width than Home. Keep
+            // its banner corner proportional to that width so the preview's
+            // visible radius matches the 26dp Home corner after the mock scale.
+            BannerGradientPreview(
+                gradientAlpha = gradientAlpha,
+                customBannerUri = customBannerUri,
+                isBannerEnabled = isBannerEnabled,
+                bannerShape = personalization.widgetCorner(26.dp * (MOCK_W / 420.dp)),
+                modifier = Modifier.height(76.dp)
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Surface(
+                    modifier = Modifier.weight(1f).height(55.dp),
+                    color = scheme.secondaryContainer,
+                    shape = homeCardShape
+                ) {}
+
+                Surface(
+                    modifier = Modifier.weight(1f).height(55.dp),
+                    color = scheme.surfaceColorAtElevation(1.dp),
+                    shape = homeCardShape
+                ) {}
+            }
+
+            Surface(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                color = scheme.surfaceColorAtElevation(1.dp),
+                shape = homeCardShape
+            ) {}
+
+            NavBarMock(
+                navShape = personalization.navRadius,
+                labelMode = personalization.navLabels,
+                vibrantNav = personalization.vibrantNav,
+                navScale = personalization.navScale,
+                navSpacing = personalization.navSpacing,
+                isBlurEnabled = isBlurEnabled,
+                mockHaze = mockHaze
+            )
+        }
+        }
+    }
+}
+
+@Composable
+private fun BannerGradientPreview(
+    gradientAlpha: Float,
+    customBannerUri: String?,
+    isBannerEnabled: Boolean = true,
+    bannerShape: Shape,
+    modifier: Modifier = Modifier
+) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    if (!isBannerEnabled) {
+        // Mirrors BannerCard's image-off branch: a solid secondaryContainer row with a
+        // leading glyph, so the mock shows what Home actually renders with the banner off.
+        Surface(
+            modifier = modifier.fillMaxWidth(),
+            color = colorScheme.secondaryContainer,
+            shape = bannerShape
+        ) {
+            Row(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.CheckCircle,
+                    contentDescription = null,
+                    tint = colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(20.dp)
+                )
+                Box(
+                    modifier = Modifier
+                        .height(20.dp)
+                        .width(1.dp)
+                        .background(colorScheme.onSecondaryContainer.copy(alpha = 0.3f))
+                )
+                Text(
+                    text = stringResource(R.string.status_alive),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onSecondaryContainer
+                )
+            }
+        }
+        return
+    }
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(bannerShape),
+        color = colorScheme.surfaceContainerHighest
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Crossfade(
+                targetState = customBannerUri,
+                animationSpec = tween(500),
+                label = "banner_crossfade"
+            ) { uri ->
+                MediaBannerRenderer(
+                    uriString = uri,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color.Transparent, colorScheme.surfaceContainerLow.copy(alpha = gradientAlpha))
+                        )
+                    )
+            )
+
+            // The status/pid pills overlay the banner's bottom start, as they do on Home.
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 10.dp, bottom = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Surface(
+                    color = colorScheme.secondaryContainer,
+                    shape = CircleShape
+                ) {
+                    Text(
+                        text = stringResource(R.string.status_alive),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 8.sp,
+                            lineHeight = 10.sp
+                        ),
+                        color = colorScheme.onSecondaryContainer
+                    )
+                }
+                Surface(
+                    color = colorScheme.secondaryContainer,
+                    shape = CircleShape
+                ) {
+                    Text(
+                        text = stringResource(R.string.pid_format, "2727"),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 8.sp,
+                            lineHeight = 10.sp
+                        ),
+                        color = colorScheme.onSecondaryContainer
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The scheme the mock draws with, including the same personalization transforms the
+ * real theme applies, so the preview cannot disagree with what ships.
+ */
+@Composable
+private fun mockColorScheme(
+    keyColor: Int,
+    colorSpec: ColorEngine,
+    isDark: Boolean,
+    isAmoled: Boolean,
+    personalization: Personalization
+): ColorScheme {
+    val context = LocalContext.current
+    val target = if (keyColor == 0) {
+        val base = when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+                if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            else -> if (isDark) darkColorScheme() else expressiveLightColorScheme()
+        }
+        rememberDynamicColorScheme(
+            seedColor = base.primary,
+            isDark = isDark,
+            isAmoled = isAmoled,
+            specVersion = colorSpec.librarySpec,
+            primary = base.primary,
+            secondary = base.secondary,
+            tertiary = base.tertiary,
+            neutral = base.surface,
+            neutralVariant = base.surfaceVariant,
+            error = base.error
+        )
+    } else {
+        rememberDynamicColorScheme(
+            seedColor = Color(keyColor),
+            isDark = isDark,
+            isAmoled = isAmoled,
+            specVersion = colorSpec.librarySpec
+        )
+    }
+    return animateColorSchemeAsState(
+        target
+            .withAccentIntensity(personalization.accentIntensity)
+    )
+}
+
+/**
+ * The preview's navigation bar: the real [BottomNavBar], not a copy of it.
+ *
+ * This used to be a hand-built mock mirroring the bar's structure. It drifted
+ * every time the real bar changed -- dp constants that never went through the
+ * mock's scale factor, an accent disc the pinned bar does not draw, a label set
+ * at its own fixed size -- and a preview that disagrees with the thing it
+ * previews is worse than no preview at all. Composing the real bar means the
+ * only way it can be wrong is if the real bar is wrong.
+ *
+ * The bar is laid out under a reduced [LocalDensity] rather than measured at a
+ * phone's width and scaled afterwards. Density is the honest way to shrink a
+ * design: every dp constant in the bar shrinks with it, so the four 48dp tabs
+ * that will not fit the mock's 190dp become tabs that do, and the bar's own
+ * fillMaxWidth then lands it exactly on the mock's width. Scaling the painted
+ * output instead leaves the layout at phone size and the bar either overflows
+ * the card or floats off to one side of it.
+ */
+@Composable
+private fun NavBarMock(
+    navShape: Float,
+    labelMode: NavLabelMode,
+    vibrantNav: Boolean,
+    navScale: Float,
+    navSpacing: Float,
+    isBlurEnabled: Boolean,
+    mockHaze: HazeState,
+    modifier: Modifier = Modifier
+) {
+    // Derive the scale from the width the bar is actually handed, not from
+    // MOCK_W: the mock's column pads itself, so the slot is always narrower than
+    // MOCK_W and a fixed factor left the bar slightly wider than its slot, which
+    // only showed up as a clipped right edge once the card shrank.
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val k = maxWidth / AZENITH_NAV_WIDTH
+        val density = LocalDensity.current
+        CompositionLocalProvider(
+            // Only density is scaled. sp converts to px as sp * fontScale * density,
+            // so touching fontScale as well would shrink the labels by k^2 and leave
+            // them a quarter size next to the geometry they sit in.
+            LocalDensity provides Density(
+                density = density.density * k,
+                fontScale = density.fontScale
+            )
+        ) {
+            BottomNavBar(
+                items = AZENITH_NAV_ITEMS,
+                // The preview never navigates; the selected tab is the one it shows.
+                selectedRoute = "applist",
+                onItemSelected = {},
+                // The card under this bar is the tap target that zooms the mock, so
+                // a live tab would swallow it.
+                interactive = false,
+                isBlurEnabled = isBlurEnabled,
+                hazeState = mockHaze,
+                pagerState = null,
+                vibrantNav = vibrantNav,
+                navScale = navScale,
+                navSpacing = navSpacing,
+                navShape = navShape,
+                navLabels = labelMode
+            )
+        }
+    }
+}
+
+/** Width the bar is authored against, as a real phone screen is. */
+private val AZENITH_NAV_WIDTH = 360.dp
+
+/**
+ * Stands in for the profile picker dialog, the one place the app actually blurs.
+ *
+ * Haze needs real pixels behind it to sample, and the mock has none of its own,
+ * so the blur is applied to the mock content behind this card instead of to the
+ * card. Toggling the switch therefore scales, fades and blurs the same content
+ * the real dialog blurs, which is what makes the setting legible from the
+ * Personalization page alone.
+ */
+@Composable
+private fun MockBlurDialog(
+    visible: Boolean,
+    cornerScale: Float,
+    modifier: Modifier = Modifier
+) {
+    val scrimAlpha by animateFloatAsState(
+        targetValue = if (visible) 0.32f else 0f,
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        label = "mockScrim"
+    )
+    val cardAlpha by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        label = "mockCard"
+    )
+    // No scale-in: the card used to spring up from 0.88 as the toggle flipped,
+    // which read as a dialog animating rather than a blur setting changing, and
+    // it pushed the card around while the user was trying to judge the blur.
+    if (scrimAlpha == 0f && cardAlpha == 0f) return
+
+    Box(modifier) {
+        val amoled = MaterialTheme.colorScheme.surfaceContainerLowest == Color.Black
+        val scrimCol = if (amoled) Color.Black else MaterialTheme.colorScheme.scrim
+        Box(
+            Modifier
+                .matchParentSize()
+                .background(scrimCol.copy(alpha = scrimAlpha))
+        )
+        Surface(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth(0.78f)
+                .alpha(cardAlpha),
+            // Translucent like the real dialog's blurred container: opaque would
+            // hide the blur the toggle is meant to demonstrate.
+            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.82f),
+            shape = azShape((20.dp * cornerScale).coerceAtMost(40.dp))
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    Modifier
+                        .size(width = 74.dp, height = 8.dp)
+                        .clip(RoundedCornerShape(percent = 50))
+                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                )
+                repeat(3) { index ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(azShape(12.dp))
+                            .background(
+                                if (index == 1) {
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                                } else {
+                                    Color.Transparent
+                                }
+                            )
+                            .padding(horizontal = 8.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            Modifier
+                                .size(16.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (index == 1) {
+                                        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                    }
+                                )
+                        )
+                        Box(
+                            Modifier
+                                .fillMaxWidth(0.5f)
+                                .height(7.dp)
+                                .clip(RoundedCornerShape(percent = 50))
+                                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f))
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ColorButton(
+    color: Color,
+    isSelected: Boolean,
+    isDark: Boolean,
+    colorSpec: ColorEngine,
+    schemeCache: HashMap<SwatchKey, ColorScheme>,
+    onClick: () -> Unit,
+    focusKey: String? = null,
+) {
+    val context = LocalContext.current
+
+    // Each swatch previews the scheme that choosing it would produce, so the
+    // arc colours come from that preview scheme and not from the app theme,
+    // which still holds the previously committed accent until Save.
+    //
+    // Deriving a scheme is a synchronous HCT quantisation. Doing it inline meant
+    // every visible swatch recomputed one on each recomposition, which is what
+    // made opening this screen and scrolling the swatch row stutter. The cache
+    // is keyed on the seed and the spec, so a scheme is derived once and every
+    // later composition of the same swatch is a map lookup.
+    val targetColorScheme = if (color == Color.Unspecified) {
+        schemeCache.getOrPut(SwatchKey(DYNAMIC_SEED, isDark)) {
+            val baseScheme = when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+                    if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+                else ->
+                    if (isDark) darkColorScheme() else expressiveLightColorScheme()
+            }
+            rememberDynamicColorScheme(
+                seedColor = baseScheme.primary,
+                isDark = isDark,
+                specVersion = colorSpec.librarySpec,
+                primary = baseScheme.primary,
+                secondary = baseScheme.secondary,
+                tertiary = baseScheme.tertiary,
+                neutral = baseScheme.surface,
+                neutralVariant = baseScheme.surfaceVariant,
+                error = baseScheme.error
+            )
+        }
+    } else {
+        schemeCache.getOrPut(SwatchKey(color.toArgb(), isDark)) {
+            rememberDynamicColorScheme(
+                seedColor = color,
+                isDark = isDark,
+                specVersion = colorSpec.librarySpec
+            )
+        }
+    }
+
+    val colorScheme = animateColorSchemeAsState(targetColorScheme)
+
+    Surface(
+        onClick = onClick,
+        shape = azShape(20.dp),
+        color = colorScheme.surfaceContainer,
+        // The outline goes before Surface's own clickable/focusable node so the
+        // ring is drawn on the swatch and Cross runs the same action as a tap.
+        modifier = Modifier
+            .size(72.dp)
+            .gamepadFocusOutline(
+                shape = azShape(20.dp),
+                focusKey = focusKey,
+                onActivate = onClick
+            )
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Canvas(modifier = Modifier.size(48.dp)) {
+                drawArc(
+                    color = colorScheme.primaryContainer,
+                    startAngle = 180f,
+                    sweepAngle = 180f,
+                    useCenter = true
+                )
+                drawArc(
+                    color = colorScheme.tertiaryContainer,
+                    startAngle = 0f,
+                    sweepAngle = 180f,
+                    useCenter = true
+                )
+            }
+
+            val scale by animateFloatAsState(targetValue = if (isSelected) 1.1f else 1.0f, label = "scale")
+            
+            Box(
+                modifier = Modifier.graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                },
+                contentAlignment = Alignment.Center
+            ) {
+                AnimatedVisibility(
+                    visible = isSelected,
+                    enter = fadeIn() + scaleIn(initialScale = 0.8f),
+                    exit = fadeOut() + scaleOut(targetScale = 0.8f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .border(2.dp, colorScheme.primary, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(colorScheme.primary, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = null,
+                                tint = colorScheme.onPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+                
+                AnimatedVisibility(
+                    visible = !isSelected,
+                    enter = fadeIn() + scaleIn(initialScale = 0.8f),
+                    exit = fadeOut() + scaleOut(targetScale = 0.8f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .background(colorScheme.primary, CircleShape)
+                    )
+                }
+            }
+        }
+    }
+}

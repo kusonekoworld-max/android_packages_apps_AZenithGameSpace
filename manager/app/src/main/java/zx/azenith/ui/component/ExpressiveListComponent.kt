@@ -1,0 +1,963 @@
+/*
+ * Copyright (C) 2026-2027 Zexshia
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package zx.azenith.ui.component
+
+import android.util.Log
+import zx.azenith.ui.theme.azShape
+
+
+import android.annotation.SuppressLint
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.surfaceColorAtElevation
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.alpha
+import androidx.compose.foundation.shape.CircleShape
+import zx.azenith.ExpressiveShapes
+import zx.azenith.ui.theme.currentPersonalization
+
+
+private val largeCorner = 26.dp
+private val smallCorner = 4.dp
+
+// Group outlines are built per composition so the single roundness dial moves
+// the first/last rows together instead of leaving hard-coded group corners.
+internal fun topShape(m: Float) = RoundedCornerShape(
+    topStart = largeCorner * m,
+    topEnd = largeCorner * m,
+    bottomStart = smallCorner * m,
+    bottomEnd = smallCorner * m
+)
+internal fun middleShape(m: Float) = RoundedCornerShape(smallCorner * m)
+internal fun bottomShape(m: Float) = RoundedCornerShape(
+    topStart = smallCorner * m,
+    topEnd = smallCorner * m,
+    bottomStart = largeCorner * m,
+    bottomEnd = largeCorner * m
+)
+private fun singleShape(m: Float) = RoundedCornerShape(largeCorner * m)
+
+@Composable
+fun ExpressiveList(
+    modifier: Modifier = Modifier,
+    title: String = "",
+    content: List<@Composable () -> Unit>,
+) {
+    if (content.isEmpty()) return
+    val m = currentPersonalization().cornerMultiplier
+
+    Column(modifier = modifier) {
+        if (title.isNotEmpty()) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
+            )
+        }
+        Column(
+            modifier = Modifier.clip(
+                singleShape(m)
+            ),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            content.forEachIndexed { index, itemContent ->
+                val shape = when {
+                    content.size == 1 -> singleShape(m)
+                    index == 0 -> topShape(m)
+                    index == content.size - 1 -> bottomShape(m)
+                    else -> middleShape(m)
+                }
+                Column(
+                    modifier = Modifier
+                        .clip(shape)
+                        .background(MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp), shape)
+                ) {
+                    ProvideRowShape(shape) { itemContent() }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun <T> ExpressiveLazyList(
+    modifier: Modifier = Modifier,
+    state: LazyListState = rememberLazyListState(),
+    contentPadding: PaddingValues = PaddingValues(all = 16.dp),
+    title: String = "",
+    key: ((T) -> Any)? = null,
+    items: List<T>,
+    itemContent: (@Composable (T) -> Unit)? = null,
+    itemContentIndexed: (@Composable (index: Int, T) -> Unit)? = null,
+) {
+    val m = currentPersonalization().cornerMultiplier
+    Column(modifier = modifier) {
+        if (title.isNotEmpty()) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
+            )
+        }
+        LazyColumn(
+            state = state,
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            contentPadding = contentPadding
+        ) {
+            itemsIndexed(
+                items = items,
+                key = if (key != null) { _, item -> key(item) } else null
+            ) { index, item ->
+                val shape = when {
+                    items.size == 1 -> singleShape(m)
+                    index == 0 -> topShape(m)
+                    index == items.lastIndex -> bottomShape(m)
+                    else -> middleShape(m)
+                }
+                Column(
+                    modifier = Modifier
+
+                        .animateItem(
+                            fadeInSpec = null,
+                            fadeOutSpec = null,
+                            placementSpec = spring(
+                                dampingRatio = Spring.DampingRatioLowBouncy,
+                                stiffness = Spring.StiffnessLow
+                            )
+                        )
+                        .clip(shape)
+                        .background(MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp))
+                ) {
+                    CompositionLocalProvider(
+                        LocalContentColor provides MaterialTheme.colorScheme.onSurface
+                    ) {
+                        ProvideRowShape(shape) {
+                            if (itemContentIndexed != null) {
+                                itemContentIndexed(index, item)
+                            } else {
+                                itemContent?.invoke(item)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun ExpressiveListItem(
+    onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
+    headlineContent: @Composable () -> Unit,
+    @SuppressLint("ModifierParameter") modifier: Modifier = Modifier,
+    supportingContent: @Composable (() -> Unit)? = null,
+    leadingContent: @Composable (() -> Unit)? = null,
+    trailingContent: @Composable (() -> Unit)? = null,
+    focusKey: String? = null,
+    focusIndex: Int? = null,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .gamepadFocusOutline(
+                register = true,
+                focusKey = focusKey,
+                focusIndex = focusIndex,
+                onActivate = onClick ?: onLongClick
+            )
+            .let {
+                if (onClick != null || onLongClick != null) {
+                    it.combinedClickable(onClick = onClick ?: {}, onLongClick = onLongClick)
+                } else {
+                    it
+                }
+            }
+            .then(modifier)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (leadingContent != null) {
+            Box(
+                modifier = Modifier.padding(end = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                leadingContent()
+            }
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = 8.dp)
+        ) {
+            headlineContent()
+            if (supportingContent != null) {
+                CompositionLocalProvider(
+                    LocalContentColor provides MaterialTheme.colorScheme.outline
+                ) {
+                    ProvideTextStyle(value = MaterialTheme.typography.bodySmall) {
+                        supportingContent()
+                    }
+                }
+            }
+        }
+        if (trailingContent != null) {
+            Box(
+                modifier = Modifier.padding(start = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                ProvideTextStyle(value = MaterialTheme.typography.bodySmall) {
+                    trailingContent()
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun ExpressiveListItemHighlight(
+    onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
+    headlineContent: @Composable () -> Unit,
+    containerColor: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Transparent, 
+    @SuppressLint("ModifierParameter") modifier: Modifier = Modifier,
+    supportingContent: @Composable (() -> Unit)? = null,
+    leadingContent: @Composable (() -> Unit)? = null,
+    trailingContent: @Composable (() -> Unit)? = null,
+    focusKey: String? = null,
+    focusIndex: Int? = null,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(containerColor) 
+            .gamepadFocusOutline(
+                register = true,
+                focusKey = focusKey,
+                focusIndex = focusIndex,
+                onActivate = onClick ?: onLongClick
+            )
+            .let {
+                if (onClick != null || onLongClick != null) {
+                    it.combinedClickable(onClick = onClick ?: {}, onLongClick = onLongClick)
+                } else {
+                    it
+                }
+            }
+            .then(modifier)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (leadingContent != null) {
+            Box(
+                modifier = Modifier.padding(end = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                leadingContent()
+            }
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = 8.dp)
+        ) {
+            headlineContent()
+            if (supportingContent != null) {
+                CompositionLocalProvider(
+                    LocalContentColor provides MaterialTheme.colorScheme.outline
+                ) {
+                    ProvideTextStyle(value = MaterialTheme.typography.bodySmall) {
+                        supportingContent()
+                    }
+                }
+            }
+        }
+        if (trailingContent != null) {
+            Box(
+                modifier = Modifier.padding(start = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                ProvideTextStyle(value = MaterialTheme.typography.bodySmall) {
+                    trailingContent()
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun ExpressiveInfoCard(
+    onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
+    containerColor: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Transparent, 
+    @SuppressLint("ModifierParameter") modifier: Modifier = Modifier,
+    supportingContent: @Composable (() -> Unit)? = null,
+    leadingContent: @Composable (() -> Unit)? = null,
+    trailingContent: @Composable (() -> Unit)? = null,
+    focusKey: String? = null,
+    focusIndex: Int? = null,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(containerColor) 
+            .gamepadFocusOutline(
+                register = true,
+                focusKey = focusKey,
+                focusIndex = focusIndex,
+                onActivate = onClick ?: onLongClick
+            )
+            .let {
+                if (onClick != null || onLongClick != null) {
+                    it.combinedClickable(onClick = onClick ?: {}, onLongClick = onLongClick)
+                } else {
+                    it
+                }
+            }
+            .then(modifier)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (leadingContent != null) {
+            Box(
+                modifier = Modifier.padding(end = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                leadingContent()
+            }
+        }
+        
+
+        if (supportingContent != null) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(vertical = 8.dp),
+                verticalArrangement = Arrangement.Center
+            ) {
+                CompositionLocalProvider(
+                    LocalContentColor provides MaterialTheme.colorScheme.outline
+                ) {
+                    ProvideTextStyle(value = MaterialTheme.typography.bodyMedium) {
+                        supportingContent()
+                    }
+                }
+            }
+        } else {
+
+            Spacer(modifier = Modifier.weight(1f))
+        }
+        
+        if (trailingContent != null) {
+            Box(
+                modifier = Modifier.padding(start = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                ProvideTextStyle(value = MaterialTheme.typography.bodySmall) {
+                    trailingContent()
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+fun ExpressiveSwitchItem(
+    icon: ImageVector? = null,
+    title: String,
+    summary: String? = null,
+    checked: Boolean,
+    enabled: Boolean = true,
+    // A disabled switch still has to explain itself, so the row stays clickable
+    // when this is set and the tap does not reach onCheckedChange.
+    onDisabledClick: (() -> Unit)? = null,
+    onCheckedChange: (Boolean) -> Unit,
+    focusKey: String? = null,
+    focusIndex: Int? = null,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val handleCheckedChange: (Boolean) -> Unit = { newChecked ->
+        onCheckedChange(newChecked)
+    }
+
+    ExpressiveListItem(
+        onClick = if (enabled || onDisabledClick == null) {
+            { handleCheckedChange(!checked) }
+        } else {
+            onDisabledClick
+        },
+        focusKey = focusKey,
+        focusIndex = focusIndex,
+        modifier = Modifier.toggleable(
+            value = checked,
+            interactionSource = interactionSource,
+            role = Role.Switch,
+            enabled = enabled,
+            indication = LocalIndication.current,
+            onValueChange = handleCheckedChange
+        ),
+        headlineContent = { Text(title) },
+        leadingContent = icon?.let {
+            {
+                LeadingIcon(
+                    icon = it,
+                    contentDescription = title,
+                    contentColor = if (enabled) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                )
+            }
+        },
+        trailingContent = {
+            Switch(
+                checked = checked,
+                enabled = enabled,
+                thumbContent = {
+                    if (checked) {
+                        Icon(
+                            imageVector = Icons.Filled.Check,
+                            contentDescription = null,
+                            tint = if (enabled) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                            modifier = Modifier.size(SwitchDefaults.IconSize),
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            modifier = Modifier.size(SwitchDefaults.IconSize),
+                        )
+                    }
+                }, 
+                onCheckedChange = handleCheckedChange,
+                interactionSource = interactionSource
+            )
+        },
+        supportingContent = summary?.let { { Text(it) } }
+    )
+}
+
+/**
+ * How [ExpressiveDropdownItem] presents its options.
+ *
+ * [Sheet] suits the longer option lists (governors, schedulers, refresh rates)
+ * where an anchored popup either scrolls off-screen or gets clipped by the row.
+ */
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ExpressiveDropdownItem(
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    title: String,
+    summary: String? = null,
+    items: List<String>,
+    enabled: Boolean = true,
+    selectedIndex: Int,
+    onItemSelected: (Int) -> Unit,
+    externalMenuState: ZXDropDownState? = null,
+    focusKey: String? = null,
+    focusIndex: Int? = null,
+) {
+    // With an external state the caller renders the menu outside whatever scrolls this row,
+    // because an in-window overlay inside a lazy item is clipped to the list viewport.
+    val ownState = remember { ZXDropDownState() }
+    val menuState = externalMenuState ?: ownState
+
+    val hasItems = items.isNotEmpty()
+    val safeIndex = if (hasItems) {
+        selectedIndex.coerceIn(0, items.lastIndex)
+    } else {
+        -1
+    }
+    val selectedLabel = if (hasItems && safeIndex >= 0) items[safeIndex] else ""
+
+    val latestEnabled by rememberUpdatedState(enabled)
+    val openMenu: () -> Unit = remember(menuState) {
+        {
+            if (latestEnabled) {
+                Log.d("PAD", "dropdown activate title=$title enabled=$latestEnabled state=${menuState.expanded}")
+                menuState.show()
+            } else {
+                Log.d("PAD", "dropdown activate ignored title=$title enabled=$latestEnabled")
+            }
+            Unit
+        }
+    }
+    var seenMenuState by remember { mutableStateOf(false) }
+    LaunchedEffect(menuState.expanded) {
+        if (!seenMenuState) {
+            seenMenuState = true
+            if (!menuState.expanded) return@LaunchedEffect
+        }
+        Log.d("PAD", "dropdown popup ${if (menuState.expanded) "opened" else "closed"} title=$title")
+        if (!menuState.expanded) {
+            // Return focus to the dropdown row after the sheet/popup closes.
+            GamepadFocusNav.restoreFocus()
+            Log.d("PAD", "dropdown focus restore requested title=$title focusKey=$focusKey")
+        }
+    }
+
+    ExpressiveListItem(
+        modifier = modifier,
+        focusKey = focusKey,
+        focusIndex = focusIndex,
+        onClick = if (enabled) openMenu else null,
+        leadingContent = icon?.let { { LeadingIcon(icon = it, contentDescription = title) } },
+        headlineContent = { Text(text = title) },
+        supportingContent = {
+            val valueColor = if (enabled) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
+            Column {
+                if (summary != null) {
+                    Text(summary)
+                }
+                Surface(
+                    color = valueColor.copy(alpha = 0.1f),
+                    shape = azShape(14.dp),
+                    modifier = if (summary != null) Modifier.padding(top = 4.dp) else Modifier
+                ) {
+                    BlurCrossfadeText(
+                        text = selectedLabel,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                        color = valueColor,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    )
+                }
+            }
+        },
+        trailingContent = {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    )
+
+    if (hasItems && externalMenuState == null) {
+        OptionPickerSheet(
+            show = menuState.expanded,
+            title = title,
+            subtitle = summary,
+            items = items,
+            selectedIndex = safeIndex,
+            accent = MaterialTheme.colorScheme.primary,
+            onSelect = { index ->
+                Log.d("PAD", "dropdown option selected title=$title index=$index")
+                if (index in items.indices) {
+                    onItemSelected(index)
+                }
+            },
+            onDismiss = {
+                Log.d("PAD", "dropdown sheet dismiss title=$title")
+                menuState.dismiss()
+            },
+        )
+    }
+}
+
+@Composable
+private fun OptionPickerSheet(
+    show: Boolean,
+    title: String,
+    subtitle: String?,
+    items: List<String>,
+    selectedIndex: Int,
+    accent: Color,
+    onSelect: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val safeIndex = if (selectedIndex in items.indices) selectedIndex else -1
+
+    AZenithSheet(
+        show = show,
+        onDismiss = onDismiss,
+        title = title,
+        subtitle = subtitle,
+        style = SheetRowStyle.SingleSelect,
+        items = items.mapIndexed { index, label ->
+            SheetItem(
+                label = label,
+                selected = index == safeIndex,
+                animateLabel = true
+            )
+        },
+        onItemClick = { index ->
+            if (index in items.indices) onSelect(index)
+        },
+    )
+}
+
+
+@Composable
+fun ExpressiveRadioItem(
+    title: String,
+    summary: String? = null,
+    selected: Boolean,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+    focusKey: String? = null,
+    focusIndex: Int? = null,
+) {
+    ExpressiveListItem(
+        onClick = onClick,
+        focusKey = focusKey,
+        focusIndex = focusIndex,
+        modifier = Modifier.toggleable(
+            value = selected,
+            onValueChange = { onClick() },
+            enabled = enabled,
+            role = Role.RadioButton
+        ),
+        headlineContent = { Text(title) },
+        leadingContent = {
+            RadioButton(
+                selected = selected,
+                onClick = null,
+                enabled = enabled
+            )
+        },
+        supportingContent = summary?.let { { Text(it) } }
+    )
+}
+
+@Composable
+fun ExpressiveCheckboxItem(
+    title: String,
+    summary: String? = null,
+    checked: Boolean,
+    enabled: Boolean = true,
+    onCheckedChange: (Boolean) -> Unit,
+    focusKey: String? = null,
+    focusIndex: Int? = null,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+
+    ExpressiveListItem(
+        onClick = { onCheckedChange(!checked) },
+        focusKey = focusKey,
+        focusIndex = focusIndex,
+        modifier = Modifier.toggleable(
+            value = checked,
+            interactionSource = interactionSource,
+            role = Role.Checkbox,
+            enabled = enabled,
+            indication = LocalIndication.current,
+            onValueChange = onCheckedChange
+        ),
+        headlineContent = { Text(title) },
+        leadingContent = {
+            Checkbox(
+                checked = checked,
+                enabled = enabled,
+                onCheckedChange = onCheckedChange,
+                interactionSource = interactionSource,
+                modifier = Modifier.size(24.dp)
+            )
+        },
+        supportingContent = summary?.let { { Text(it) } }
+    )
+}
+
+@Composable
+fun ExpressiveColumn(
+    modifier: Modifier = Modifier,
+    title: String = "",
+    content: List<@Composable () -> Unit>,
+) {
+    if (content.isEmpty()) return
+    val m = currentPersonalization().cornerMultiplier
+
+    Column(modifier = modifier) {
+        if (title.isNotEmpty()) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
+            )
+        }
+        Column(
+            modifier = Modifier.clip(
+                singleShape(m)
+            ),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            content.forEachIndexed { index, itemContent ->
+                val shape = when {
+                    content.size == 1 -> singleShape(m)
+                    index == 0 -> topShape(m)
+                    index == content.size - 1 -> bottomShape(m)
+                    else -> middleShape(m)
+                }
+                Column(
+                    modifier = Modifier
+                        .clip(shape)
+                        .background(MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp), shape)
+                ) {
+                    ProvideRowShape(shape) { itemContent() }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LeadingIcon(
+    icon: ImageVector,
+    contentDescription: String? = null,
+    containerColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+    contentColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary
+) {
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(azShape(12.dp))
+            .background(containerColor),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(22.dp),
+            tint = contentColor
+        )
+    }
+}
+
+@Composable
+fun SmallLeadingIcon(icon: ImageVector) {
+    val cs = MaterialTheme.colorScheme
+    Surface(
+        shape = azShape(12.dp),
+        color = cs.primary.copy(alpha = 0.12f),
+        modifier = Modifier.size(36.dp)
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = cs.primary,
+            modifier = Modifier
+                .padding(7.dp)
+                .size(22.dp)
+        )
+    }
+}
+
+/**
+ * Renders the gradient progress track behind a [Slider].
+ *
+ * The animated progress is read inside [drawBehind] rather than in the
+ * composable body: the track is the only thing that changes while dragging, so
+ * reading the animation in the draw phase keeps the row's title, subtitle and
+ * badge out of the per-frame recomposition.
+ */
+@Composable
+fun SliderTrack(
+    progress: () -> Float,
+    modifier: Modifier = Modifier,
+    trackColor: Color = MaterialTheme.colorScheme.surfaceContainerHighest,
+    brush: Brush,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(trackHeight)
+            .drawBehind {
+                val corner = CornerRadius(size.height / 2f, size.height / 2f)
+                drawRoundRect(color = trackColor, cornerRadius = corner)
+                val fraction = progress().coerceIn(0f, 1f)
+                if (fraction > 0f) {
+                    drawRoundRect(
+                        brush = brush,
+                        size = Size(size.width * fraction, size.height),
+                        cornerRadius = corner
+                    )
+                }
+            }
+    )
+}
+
+private val trackHeight = 8.dp
+
+@Composable
+fun ExpressiveSliderItem(
+    icon: ImageVector? = null,
+    title: String,
+    subtitle: String? = null,
+    badgeText: String,
+    sliderPosition: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    steps: Int,
+    enabled: Boolean = true,
+    onValueChange: (Float) -> Unit,
+    onValueChangeFinished: () -> Unit
+) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    val animatedAlpha by animateFloatAsState(
+        targetValue = if (enabled) 1f else 0.4f,
+        animationSpec = tween(durationMillis = 300),
+        label = "SliderEnabledAlpha"
+    )
+    
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .alpha(animatedAlpha)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                if (icon != null) {
+                    LeadingIcon(icon = icon, contentDescription = title)
+                    Spacer(modifier = Modifier.width(16.dp))
+                }
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = colorScheme.onSurface
+                )
+            }
+
+            Surface(
+                color = colorScheme.primaryContainer,
+                shape = azShape(12.dp)
+            ) {
+                Text(
+                    text = badgeText,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onPrimaryContainer
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(4.dp))
+
+        if (subtitle != null) {
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = colorScheme.outline,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+
+        ZenithSlider(
+            value = sliderPosition,
+            onValueChange = onValueChange,
+            onValueChangeFinished = onValueChangeFinished,
+            valueRange = valueRange,
+            steps = steps,
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth().height(40.dp)
+        )
+    }
+}

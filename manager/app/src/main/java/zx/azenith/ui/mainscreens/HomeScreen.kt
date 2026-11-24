@@ -1,0 +1,413 @@
+/*
+ * Copyright (C) 2026-2027 Zexshia
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
+
+package zx.azenith.ui.mainscreens
+
+
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
+import zx.azenith.ui.util.RootUtils
+import android.content.Context
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
+import zx.azenith.R
+import zx.azenith.ui.component.*
+import zx.azenith.ui.viewmodel.HomeViewModel
+import zx.azenith.ui.viewmodel.RootStatusState
+import zx.azenith.ui.viewmodel.StartupStage
+
+
+@Composable
+fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
+    val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
+    val uiState by viewModel.uiState.collectAsState()
+
+    val settingsPrefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
+    var isBlurEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("expressive_blur_ui", false)) }
+
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
+    val listState = rememberLazyListState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+
+    var showRebootSheet by remember { mutableStateOf(false) }
+    var requestHideRebootSheet by remember { mutableStateOf(false) }
+    var showProfileDialog by remember { mutableStateOf(false) }
+    val profileDialogOrigin = rememberDialogOrigin()
+    val profileTileModifier = profileDialogOrigin.trackedModifier()
+
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+
+    LaunchedEffect(Unit) {
+        listState.scrollToItem(0)
+    }
+    
+    LaunchedEffect(Unit) {
+        viewModel.refreshAiMode()
+        isBlurEnabled = settingsPrefs.getBoolean("expressive_blur_ui", false)
+    }
+
+    // Gamepad: Home has no search, so Square does nothing. Triangle toggles the
+    // power action (the reboot sheet) that sits beside search.
+    val isCurrentPage = LocalIsCurrentPagerPage.current
+    val isPagerActive = LocalMainPagerActive.current
+    val pageIndex = LocalPagerPageIndex.current
+    RegisterGamepadActions(
+        enabled = isCurrentPage && isPagerActive,
+        hasSearch = false,
+        hasTopAction = true,
+        isTopActionOpen = showRebootSheet,
+        onTopAction = { showRebootSheet = !showRebootSheet },
+        onCloseOverlay = {
+            when {
+                showRebootSheet && !requestHideRebootSheet -> { requestHideRebootSheet = true; true }
+                showProfileDialog -> { showProfileDialog = false; true }
+                else -> false
+            }
+        },
+        scrollState = listState,
+        onScrollDelta = { delta ->
+            scrollBehavior.state.heightOffset =
+                (scrollBehavior.state.heightOffset - delta)
+                    .coerceIn(scrollBehavior.state.heightOffsetLimit, 0f)
+        }
+    )
+
+    // Turning auto mode back on takes manual switching away, so a dialog left
+    // open across that change would keep offering a choice that no longer applies.
+    LaunchedEffect(uiState.autoMode) {
+        if (uiState.autoMode != "0") showProfileDialog = false
+    }
+
+    Scaffold(
+        modifier = if (!isLandscapeNav()) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier,
+        topBar = {
+            // Landscape drops the bar: the dock names the page and carries the reboot
+            // action at its bottom, and the height goes to the page.
+            if (!isLandscapeNav()) {
+                HomeTopAppBar(
+                    scrollBehavior = scrollBehavior,
+                    onRebootClick = { showRebootSheet = true }
+                )
+            }
+            PublishNavDockActions(
+                listOf(
+                    NavDockAction(
+                        icon = Icons.Rounded.PowerSettingsNew,
+                        contentDescription = stringResource(R.string.reboot),
+                        onClick = { showRebootSheet = true },
+                        topActionBadge = true
+                    )
+                )
+            )
+        },
+        snackbarHost = {
+            ZenithSnackbarHost(
+                hostState = snackbarHostState,
+                portraitBottomPadding = 100.dp,
+                landscapeDockClearance = true
+            )
+        },
+        contentColor = ScaffoldContentColor(),
+        containerColor = ScaffoldContainerColor(MaterialTheme.colorScheme.surface)
+    ) { innerPadding ->
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().hazePageSource().gamepadScreenEntry(page = pageIndex),
+            contentPadding = PaddingValues(
+                top = innerPadding.calculateTopPadding() + 16.dp,
+                start = 16.dp + safeAreaStartInset(),
+                end = 16.dp + navBarEndClearance(),
+                bottom = navBarBottomClearance(
+                    WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                )
+            ),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                // The handshake gates the status text: the module cannot be judged until the
+                // shell is up, so anything earlier reports root progress rather than a verdict.
+                val bannerStatus = when (uiState.startupStage) {
+                    StartupStage.WaitingForRoot -> stringResource(R.string.status_waiting_for_root)
+                    StartupStage.RootGranted -> stringResource(R.string.root_granted)
+                    StartupStage.FetchingModule -> stringResource(R.string.status_fetching)
+                    StartupStage.RootUnavailable -> stringResource(R.string.status_root_unavailable)
+                    StartupStage.Ready ->
+                        if (!uiState.moduleInstalled) stringResource(R.string.module_not_installed)
+                        else stringResource(uiState.serviceStatusRes)
+                }
+                val bannerTone = when (uiState.startupStage) {
+                    StartupStage.RootGranted, StartupStage.Ready -> BannerTone.Good
+                    StartupStage.RootUnavailable -> BannerTone.Bad
+                    else -> BannerTone.Neutral
+                }
+                // The pid belongs to the daemon, so it is only meaningful once the module
+                // check has run and the service poll returned its first id.
+                val bannerPid = if (uiState.startupStage == StartupStage.Ready) uiState.servicePid else ""
+
+                // The running-game card (with its elapsed time) is driven by
+                // gameinfo only: show it whenever gameinfo reports a running
+                // game, regardless of the current profile or auto/manual mode.
+                val showGameCard = !uiState.runningGamePkg.isNullOrEmpty()
+
+                var retainedPkg by remember { mutableStateOf("") }
+                var retainedStartTime by remember { mutableStateOf("00:00:00") }
+
+                LaunchedEffect(uiState.runningGamePkg, uiState.runningGameStartTime) {
+                    if (!uiState.runningGamePkg.isNullOrEmpty()) {
+                        retainedPkg = uiState.runningGamePkg!!
+                        retainedStartTime = uiState.runningGameStartTime ?: "00:00:00"
+                    }
+                }
+
+                if (isLandscape) {
+
+
+                    Column() {
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(IntrinsicSize.Max),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                                BannerWithEasterEgg(
+                                    status = bannerStatus, pid = bannerPid,
+                                    isBannerEnabled = uiState.isBannerEnabled,
+                                    isBlurEnabled = isBlurEnabled,
+                                    modifier = Modifier.fillMaxSize(),
+                                    tone = bannerTone,
+                                    horizontalNav = HorizontalNav.PASS_BOTH
+                                ) { }
+                            }
+
+                            Row(
+                                modifier = Modifier.weight(1f).fillMaxHeight(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                InfoTile(
+                                    modifier = Modifier.weight(1f).fillMaxHeight().then(profileTileModifier),
+                                    icon = Icons.Rounded.Token, 
+                                    label = stringResource(R.string.current_profile), 
+                                    value = stringResource(uiState.currentProfileRes), 
+                                    highlight = (uiState.currentProfileRes != R.string.status_initializing), 
+                                    showArrow = uiState.autoMode == "0",
+                                    isLoading = uiState.isProfileApplying,
+                                    horizontalNav = HorizontalNav.PASS_BOTH
+                                ) { if (uiState.autoMode == "0") showProfileDialog = true }
+
+                                InfoTile(
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                                    icon = Icons.Rounded.Security,
+                                    iconOverride = rootIcon(uiState.rootStatusState),
+                                    label = stringResource(R.string.root_access),
+                                    value = stringResource(rootValueRes(uiState.rootStatusState)),
+                                    tone = rootTone(uiState.rootStatusState),
+                                    highlight = false,
+                                    horizontalNav = HorizontalNav.BLOCK_RIGHT
+                                ) {
+                                    viewModel.refreshRootStatus { changed ->
+                                        if (changed) {
+                                            coroutineScope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    context.getString(R.string.root_status_changed)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        AnimatedVisibility(
+                            visible = showGameCard,
+                            enter = expandVertically(animationSpec = spring()) + fadeIn(),
+                            exit = shrinkVertically(animationSpec = spring()) + fadeOut()
+                        ) {
+
+                            Column {
+                                Spacer(modifier = Modifier.height(16.dp))
+                                if (retainedPkg.isNotEmpty()) {
+                                    RunningGameCard(
+                                        pkgName = retainedPkg,
+                                        startTimeStr = retainedStartTime
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+
+
+                    Column() {
+                        BannerWithEasterEgg(
+                            status = bannerStatus, pid = bannerPid,
+                            isBannerEnabled = uiState.isBannerEnabled,
+                            isBlurEnabled = isBlurEnabled,
+                            modifier = if (uiState.isBannerEnabled) Modifier.fillMaxWidth().aspectRatio(20 / 9f) else Modifier.fillMaxWidth().height(100.dp),
+                            tone = bannerTone
+                        ) { }
+
+                        AnimatedVisibility(
+                            visible = showGameCard,
+                            enter = expandVertically(animationSpec = spring()) + fadeIn(),
+                            exit = shrinkVertically(animationSpec = spring()) + fadeOut()
+                        ) {
+
+                            Column {
+                                Spacer(modifier = Modifier.height(16.dp))
+                                if (retainedPkg.isNotEmpty()) { 
+                                    RunningGameCard(
+                                        pkgName = retainedPkg,
+                                        startTimeStr = retainedStartTime
+                                    )
+                                }
+                            }
+                        }
+
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(IntrinsicSize.Max),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            InfoTile(
+                                modifier = Modifier.weight(1f).fillMaxHeight().then(profileTileModifier),
+                                icon = Icons.Rounded.Token, 
+                                label = stringResource(R.string.current_profile), 
+                                value = stringResource(uiState.currentProfileRes), 
+                                highlight = (uiState.currentProfileRes != R.string.status_initializing), 
+                                showArrow = uiState.autoMode == "0",
+                                isLoading = uiState.isProfileApplying,
+                                horizontalNav = HorizontalNav.BLOCK_LEFT
+                            ) { if (uiState.autoMode == "0") showProfileDialog = true }
+
+                            InfoTile(
+                                modifier = Modifier.weight(1f).fillMaxHeight(),
+                                icon = Icons.Rounded.Security,
+                                iconOverride = rootIcon(uiState.rootStatusState),
+                                label = stringResource(R.string.root_access),
+                                value = stringResource(rootValueRes(uiState.rootStatusState)),
+                                tone = rootTone(uiState.rootStatusState),
+                                highlight = false,
+                                horizontalNav = HorizontalNav.BLOCK_RIGHT
+                            ) {
+                                viewModel.refreshRootStatus { changed ->
+                                    if (changed) {
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                context.getString(R.string.root_status_changed)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+            }
+
+            item { DeviceInfoCard() }
+            item { LinkCard(Icons.Rounded.Favorite, R.string.support_us, R.string.support_us_desc) { uriHandler.openUri("https://t.me/ZeshArch") } }
+            item { LinkCard(Icons.Rounded.Info, R.string.learn_more, R.string.learn_more_desc) { uriHandler.openUri("https://github.com/Liliya2727/AZenith") } }
+        }
+    }
+
+    RootAppDialog {
+        RebootBottomSheet(
+            show = showRebootSheet,
+            onDismiss = {
+                showRebootSheet = false
+                requestHideRebootSheet = false
+            },
+            onReboot = { reason -> viewModel.rebootDevice(reason) },
+            externalHideRequest = requestHideRebootSheet,
+            onExternalHideConsumed = { requestHideRebootSheet = false }
+        )
+    }
+
+
+    RootAppDialog {
+        ProfileDialog(
+            show = showProfileDialog,
+            onDismiss = { showProfileDialog = false },
+            origin = profileDialogOrigin.origin,
+            currentProfile = uiState.currentProfileValue,
+            onProfile = { profileReason ->
+                viewModel.applyProfile(profileReason) {
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar(context.getString(R.string.toast_applying_profile))
+                    }
+                }
+            }
+        )
+    }
+}
+
+private fun rootValueRes(state: RootStatusState): Int = when (state) {
+    RootStatusState.Checking -> R.string.status_checking
+    RootStatusState.Granted -> R.string.root_granted
+    RootStatusState.NotGranted -> R.string.root_not_granted
+}
+
+private fun rootIcon(state: RootStatusState) = when (state) {
+    RootStatusState.Checking -> Icons.Rounded.Security
+    RootStatusState.Granted -> Icons.Rounded.VerifiedUser
+    RootStatusState.NotGranted -> Icons.Rounded.LockPerson
+}
+
+private fun rootTone(state: RootStatusState) = when (state) {
+    RootStatusState.Checking -> InfoTileTone.Neutral
+    RootStatusState.Granted -> InfoTileTone.Good
+    RootStatusState.NotGranted -> InfoTileTone.Bad
+}
+

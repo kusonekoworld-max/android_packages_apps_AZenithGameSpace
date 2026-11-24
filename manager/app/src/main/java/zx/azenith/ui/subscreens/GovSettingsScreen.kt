@@ -1,0 +1,401 @@
+/*
+ * Copyright (C) 2026-2027 Zexshia
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
+
+package zx.azenith.ui.subscreens
+
+import zx.azenith.ui.theme.azShape
+
+
+import zx.azenith.ui.navigation.safePopBackStack
+import android.app.Activity
+import android.content.Context
+import android.os.Build
+import android.view.WindowManager
+import android.widget.Toast
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.List
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.*
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarScrollBehavior
+import androidx.compose.material3.rememberTopAppBarState
+import androidx.compose.runtime.*
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
+import com.topjohnwu.superuser.Shell
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import zx.azenith.R
+import zx.azenith.ui.component.*
+import zx.azenith.ui.mainscreens.*
+import zx.azenith.ui.util.PropertyUtils
+import zx.azenith.ui.util.*
+import zx.azenith.ui.viewmodel.TweakViewModel
+import zx.azenith.ui.navigation.rememberScopedStoreOwner
+import zx.azenith.ui.component.gamepadScreenEntry
+
+/**
+ * Which LazyColumn item holds each searchable row, so a search result can scroll
+ * to it. Positional: the list is built inline and the rows carry no keys of their
+ * own. Sections are in here too -- a heading is a legitimate landing spot.
+ */
+private val GOV_ROW_ITEMS: Map<String, Int> = mapOf(
+    "gov.cpu" to 1,
+    "gov.cpu_default" to 2,
+    "gov.cpu_performance" to 2,
+    "gov.cpu_powersave" to 2,
+    "gov.io" to 3,
+    "gov.io_balanced" to 4,
+    "gov.io_performance" to 4,
+    "gov.io_powersave" to 4,
+    "gov.mali" to 5,
+    "gov.mali_balanced" to 6,
+    "gov.mali_performance" to 6,
+    "gov.mali_powersave" to 6,
+)
+
+@Composable
+fun GovSettings(
+    navController: NavController,
+    viewModel: TweakViewModel = viewModel(viewModelStoreOwner = rememberScopedStoreOwner(navController, "main"))
+) {
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
+    val context = LocalContext.current
+    val listState = rememberLazyListState()
+    RegisterGamepadActions(
+        enabled = true,
+        onBack = {
+            navController.safePopBackStack()
+            true
+        },
+        scrollState = listState,
+    )
+
+    // Search results land here: entry id -> the LazyColumn item
+    // holding that row.
+    val jumpPulse = listState.searchJumpTarget(
+        owns = { it.startsWith("gov.") },
+        indexOf = { id -> GOV_ROW_ITEMS[id] }
+    )
+    val colorScheme = MaterialTheme.colorScheme
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+
+    val isReady by produceState(false) {
+        // Allow navigation slide animation to finish smoothly
+        delay(200)
+        value = true
+        if (!viewModel.isUiLoaded) {
+            viewModel.loadAllConfiguration(context)
+        }
+    }
+
+
+    Scaffold(
+        modifier = Modifier,
+        topBar = { GovSettingsTopAppBar(
+            onBack = { navController.safePopBackStack() },
+            scrollBehavior = scrollBehavior
+            ) 
+        },
+        contentColor = ScaffoldContentColor(),
+        containerColor = ScaffoldContainerColor(MaterialTheme.colorScheme.surface)
+    ) { innerPadding ->
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .hazePageSource()
+                .gamepadScreenEntry(scopeKey = "subscreen:governors"),
+            contentPadding = PaddingValues(
+                top = innerPadding.calculateTopPadding(),
+                start = 16.dp,
+                end = 16.dp,
+                bottom = 16.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+            ),
+
+        ) {
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                ExpressiveList(
+                    content = listOf( 
+                        {
+                            ExpressiveInfoCard(
+                                supportingContent = { Text(text = stringResource(R.string.gov_settingsdesc2)) },
+                                leadingContent = { LeadingIcon(icon = Icons.Filled.Info) },
+                                containerColor = colorScheme.surfaceContainerLow,
+                                onClick = {}
+                            )
+                        }
+                    )
+                )
+            }
+
+            item { JumpRow(activeId = jumpPulse, entryId = "gov.cpu", highlightShape = azShape(14.dp)) { TweaksSectionTitle(stringResource(R.string.section_CPUSettings)) } }
+            item {
+                if (isReady && viewModel.defaultGovIndex != null && 
+                    viewModel.powersaveGovIndex != null && 
+                    viewModel.performanceGovIndex != null && 
+                    viewModel.freqOffsetIndex != null) {
+                    ExpressiveList(
+                        content = listOf(
+                            {
+                                JumpRow(activeId = jumpPulse, entryId = "gov.cpu_default") {
+                                    ExpressiveDropdownItem(
+                                                                        icon = Icons.Outlined.Water,
+                                                                        title = stringResource(R.string.default_cpu_gov),
+                                                                        summary = stringResource(R.string.default_cpu_gov_desc),
+                                                                        items = viewModel.availableGovernors ?: emptyList(),
+                                                                        selectedIndex = viewModel.defaultGovIndex!!,
+                                                                        onItemSelected = { viewModel.updateDefaultGovernor(it) }
+                                                                    )
+                                }
+                            },
+                            {
+                                JumpRow(activeId = jumpPulse, entryId = "gov.cpu_performance") {
+                                    ExpressiveDropdownItem(
+                                                                        icon = Icons.Outlined.OfflineBolt,
+                                                                        title = stringResource(R.string.performance_cpu_gov),
+                                                                        summary = stringResource(R.string.performance_cpu_gov_desc),
+                                                                        items = viewModel.availableGovernors ?: emptyList(),
+                                                                        selectedIndex = viewModel.performanceGovIndex!!,
+                                                                        onItemSelected = { viewModel.updatePerformanceGovernor(it) }
+                                                                    )
+                                }
+                            },
+                            {
+                                JumpRow(activeId = jumpPulse, entryId = "gov.cpu_powersave") {
+                                    ExpressiveDropdownItem(
+                                                                        icon = Icons.Outlined.EnergySavingsLeaf,
+                                                                        title = stringResource(R.string.powersave_cpu_gov),
+                                                                        summary = stringResource(R.string.powersave_cpu_gov_desc),
+                                                                        items = viewModel.availableGovernors ?: emptyList(),
+                                                                        selectedIndex = viewModel.powersaveGovIndex!!,
+                                                                        onItemSelected = { viewModel.updatePowersaveGovernor(it) }
+                                                                    )
+                                }
+                            },
+                            {
+                                FreqLimitSliderItem(
+                                    icon = Icons.Outlined.Tune,
+                                    initialValue = viewModel.freqOffsetIndex!!,
+                                    labels = viewModel.offsetLabels,
+                                    onSaved = { viewModel.saveFreqOffset(it) }
+                                )
+                            }
+                        )
+                    )
+                } else {
+                    SectionLoadingIndicator()
+                }
+            }
+
+            item { JumpRow(activeId = jumpPulse, entryId = "gov.io", highlightShape = azShape(14.dp)) { TweaksSectionTitle(stringResource(R.string.io_settings)) } }
+            item {
+                if (!isReady || viewModel.availableIOSchedulers == null) {
+                    SectionLoadingIndicator()
+                } else if (viewModel.availableIOSchedulers!!.isNotEmpty()) {
+                    if (viewModel.balancedIOIndex != null && 
+                        viewModel.performanceIOIndex != null && 
+                        viewModel.powersaveIOIndex != null) {
+                        ExpressiveList(
+                            content = listOf(
+                                {
+                                    JumpRow(activeId = jumpPulse, entryId = "gov.io_balanced") {
+                                        ExpressiveDropdownItem(
+                                                                                icon = Icons.Outlined.Water,
+                                                                                title = stringResource(R.string.balanced_io_scheduler),
+                                                                                summary = stringResource(R.string.balanced_io_scheduler_desc),
+                                                                                items = viewModel.availableIOSchedulers ?: emptyList(),
+                                                                                selectedIndex = viewModel.balancedIOIndex!!,
+                                                                                onItemSelected = { viewModel.updateBalancedIO(it) }
+                                                                            )
+                                    }
+                                },
+                                {
+                                    JumpRow(activeId = jumpPulse, entryId = "gov.io_performance") {
+                                        ExpressiveDropdownItem(
+                                                                                icon = Icons.Outlined.OfflineBolt,
+                                                                                title = stringResource(R.string.performance_io_scheduler),
+                                                                                summary = stringResource(R.string.performance_io_scheduler_desc),
+                                                                                items = viewModel.availableIOSchedulers ?: emptyList(),
+                                                                                selectedIndex = viewModel.performanceIOIndex!!,
+                                                                                onItemSelected = { viewModel.updatePerformanceIO(it) }
+                                                                            )
+                                    }
+                                },
+                                {
+                                    JumpRow(activeId = jumpPulse, entryId = "gov.io_powersave") {
+                                        ExpressiveDropdownItem(
+                                                                                icon = Icons.Outlined.EnergySavingsLeaf,
+                                                                                title = stringResource(R.string.powersave_io_scheduler),
+                                                                                summary = stringResource(R.string.powersave_io_scheduler_desc),
+                                                                                items = viewModel.availableIOSchedulers ?: emptyList(),
+                                                                                selectedIndex = viewModel.powersaveIOIndex!!,
+                                                                                onItemSelected = { viewModel.updatePowersaveIO(it) }
+                                                                            )
+                                    }
+                                }
+                            )
+                        )
+                    } else {
+                        SectionLoadingIndicator()
+                    }
+                } else {
+
+                }
+            }
+
+
+            if (viewModel.isMaliGpuAvailable == true) {
+                item { JumpRow(activeId = jumpPulse, entryId = "gov.mali", highlightShape = azShape(14.dp)) { TweaksSectionTitle(text = stringResource(R.string.section_mali_gpu)) } }
+                item {
+                    if (!isReady || viewModel.availableMaliGovernors == null) {
+                        SectionLoadingIndicator()
+                    } else if (viewModel.availableMaliGovernors!!.isNotEmpty()) {
+                        if (viewModel.balancedMaliGovIndex != null && 
+                            viewModel.performanceMaliGovIndex != null && 
+                            viewModel.powersaveMaliGovIndex != null) {
+                            ExpressiveList(
+                                content = listOf(
+                                    {
+                                        JumpRow(activeId = jumpPulse, entryId = "gov.mali_balanced") {
+                                            ExpressiveDropdownItem(
+                                                                                        icon = Icons.Outlined.Water,
+                                                                                        title = stringResource(R.string.balanced_mali_gov),
+                                                                                        summary = stringResource(R.string.balanced_mali_gov_desc),
+                                                                                        items = viewModel.availableMaliGovernors ?: emptyList(),
+                                                                                        selectedIndex = viewModel.balancedMaliGovIndex!!,
+                                                                                        onItemSelected = { viewModel.updateBalancedMaliGov(it) }
+                                                                                    )
+                                        }
+                                    },
+                                    {
+                                        JumpRow(activeId = jumpPulse, entryId = "gov.mali_performance") {
+                                            ExpressiveDropdownItem(
+                                                                                        icon = Icons.Outlined.OfflineBolt,
+                                                                                        title = stringResource(R.string.performance_mali_gov),
+                                                                                        summary = stringResource(R.string.performance_mali_gov_desc),
+                                                                                        items = viewModel.availableMaliGovernors ?: emptyList(),
+                                                                                        selectedIndex = viewModel.performanceMaliGovIndex!!,
+                                                                                        onItemSelected = { viewModel.updatePerformanceMaliGov(it) }
+                                                                                    )
+                                        }
+                                    },
+                                    {
+                                        JumpRow(activeId = jumpPulse, entryId = "gov.mali_powersave") {
+                                            ExpressiveDropdownItem(
+                                                                                        icon = Icons.Outlined.EnergySavingsLeaf,
+                                                                                        title = stringResource(R.string.powersave_mali_gov),
+                                                                                        summary = stringResource(R.string.powersave_mali_gov_desc),
+                                                                                        items = viewModel.availableMaliGovernors ?: emptyList(),
+                                                                                        selectedIndex = viewModel.powersaveMaliGovIndex!!,
+                                                                                        onItemSelected = { viewModel.updatePowersaveMaliGov(it) }
+                                                                                    )
+                                        }
+                                    }
+                                )
+                            )
+                        } else {
+                            SectionLoadingIndicator()
+                        }
+                    }
+                }
+            }              
+        }
+    }
+}
+
+@Composable
+fun GovSettingsTopAppBar(
+    onBack: () -> Unit,
+    scrollBehavior: TopAppBarScrollBehavior
+) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .gamepadNotFocusable()
+            .appBarFade(colorScheme.surface, scrollBehavior.state.overlappedFraction)
+            .statusBarsPadding()
+    ) {
+        TopAppBar(
+            title = { 
+                Text(
+                    text = stringResource(R.string.gov_settings),
+                    fontWeight = FontWeight.Bold
+                ) 
+            },
+            navigationIcon = {
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier.focusProperties { canFocus = false }
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
+                }
+            },       
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent,
+                scrolledContainerColor = Color.Transparent
+            ),
+            
+            windowInsets = WindowInsets(0, 0, 0, 0)
+        )
+    }
+}
+            

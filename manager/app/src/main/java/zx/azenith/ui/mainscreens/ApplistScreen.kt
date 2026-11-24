@@ -1,0 +1,541 @@
+/*
+ * Copyright (C) 2026-2027 Zexshia
+ *
+ * Licensed under the Apache License, Version 2.0 (the \"License\");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an \"AS IS\" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
+
+package zx.azenith.ui.mainscreens
+
+import zx.azenith.ui.theme.azShape
+
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.material3.LargeFlexibleTopAppBar
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarScrollBehavior
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.pullToRefresh
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
+import androidx.navigation.NavHostController
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import zx.azenith.R
+import kotlinx.coroutines.delay
+import zx.azenith.ui.component.*
+import zx.azenith.ui.component.AppIconImage
+import zx.azenith.ui.viewmodel.ApplistViewmodel
+
+
+@Composable
+fun ApplistScreen(navController: NavController) {
+    val context = LocalContext.current
+    val viewModel: ApplistViewmodel = viewModel()
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val listState = rememberLazyListState()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    
+    val topAppBarState = rememberSaveable(saver = TopAppBarState.Saver) {
+        TopAppBarState(
+            initialHeightOffsetLimit = -Float.MAX_VALUE,
+            initialHeightOffset = 0f,
+            initialContentOffset = 0f
+        )
+    }
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(topAppBarState)
+    
+    val pullToRefreshState = rememberPullToRefreshState()
+
+    LaunchedEffect(Unit) {
+        if (ApplistViewmodel.apps.isEmpty()) {
+            viewModel.loadApps(context)
+        }
+    }
+
+    var isSearchMode by remember { mutableStateOf(false) }
+    var showFilterSheet by rememberSaveable { mutableStateOf(false) }
+    var requestHideFilterSheet by rememberSaveable { mutableStateOf(false) }
+    
+    BackHandler(enabled = isSearchMode) {
+        viewModel.clearSearch()
+        isSearchMode = false
+        focusManager.clearFocus()
+    }
+
+    LaunchedEffect(isSearchMode) {
+        if (isSearchMode) {
+            focusRequester.requestFocus()
+        } else {
+            viewModel.clearSearch()
+            focusManager.clearFocus()
+        }
+    }
+
+    // Gamepad shortcuts: Square toggles the inline search, Triangle toggles the
+    // filter sheet. The page only registers while it is the visible pager page.
+    val isCurrentPage = LocalIsCurrentPagerPage.current
+    val isPagerActive = LocalMainPagerActive.current
+    val pageIndex = LocalPagerPageIndex.current
+    RegisterGamepadActions(
+        enabled = isCurrentPage && isPagerActive,
+        hasSearch = true,
+        isSearchOpen = isSearchMode,
+        onSearchToggle = {
+            if (isSearchMode) {
+                isSearchMode = false
+                viewModel.updateSearch(TextFieldValue(""))
+            } else {
+                isSearchMode = true
+            }
+        },
+        onSearchClose = {
+            isSearchMode = false
+            viewModel.updateSearch(TextFieldValue(""))
+        },
+        hasTopAction = true,
+        isTopActionOpen = showFilterSheet,
+        onTopAction = { showFilterSheet = !showFilterSheet },
+        onCloseOverlay = {
+            if (showFilterSheet && !requestHideFilterSheet) {
+                requestHideFilterSheet = true
+                true
+            } else false
+        },
+        scrollState = listState,
+        onScrollDelta = { delta ->
+            scrollBehavior.state.heightOffset =
+                (scrollBehavior.state.heightOffset - delta)
+                    .coerceIn(scrollBehavior.state.heightOffsetLimit, 0f)
+        }
+    )
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (ApplistViewmodel.apps.isNotEmpty()) {
+                    viewModel.refreshAppConfigStatus()
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    
+    Scaffold(
+        topBar = {
+            // Landscape drops the bar unless the app search field is up, which only the
+            // bar can host; the dock carries the rest of the page's actions.
+            if (!isLandscapeNav() || isSearchMode) {
+                ApplistTopAppBar(
+                    scrollBehavior,
+                    isSearchMode = isSearchMode,
+                    onSearchModeChange = { 
+                        isSearchMode = it 
+                        if (!it) viewModel.clearSearch() 
+                    },
+                    searchQuery = viewModel.searchTextFieldValue,
+                    onSearchChange = { viewModel.updateSearch(it) },
+                    onOpenFilters = { showFilterSheet = true },
+                    activeFilterCount = viewModel.activeFilterCount,
+                    onRefresh = { viewModel.loadApps(context, forceRefresh = true) },
+                    focusRequester = focusRequester
+                )
+            }
+            PublishNavDockActions(
+                listOf(
+                    NavDockAction(
+                        icon = Icons.Default.FilterList,
+                        contentDescription = stringResource(R.string.cd_filter),
+                        onClick = { showFilterSheet = true },
+                        badgeCount = viewModel.activeFilterCount,
+                        highlighted = viewModel.activeFilterCount > 0,
+                        topActionBadge = true
+                    ),
+                    NavDockAction(
+                        icon = Icons.Default.Search,
+                        contentDescription = stringResource(R.string.cd_search),
+                        onClick = { isSearchMode = true }
+                    )
+                )
+            )
+        }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .hazePageSource()
+                .pullToRefresh(
+                    state = pullToRefreshState,
+                    isRefreshing = viewModel.isRefreshing,
+                    onRefresh = { 
+                        AppIconCache.clear()
+                        viewModel.loadApps(context, forceRefresh = true) 
+                    }
+                )
+                .then(
+                    if (!isLandscapeNav() || isSearchMode) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
+                    else Modifier
+                )
+        ) {
+            val appsToDisplay = viewModel.filteredApps
+
+            val navBottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+            val listContentPadding = PaddingValues(
+                top = innerPadding.calculateTopPadding() + 16.dp,
+                start = 16.dp + safeAreaStartInset(),
+                end = 16.dp + navBarEndClearance(),
+                bottom = navBarBottomClearance(navBottomPadding)
+            )
+
+                AnimatedVisibility(
+                    visible = appsToDisplay.isEmpty() && !viewModel.isRefreshing,
+                    enter = fadeIn(animationSpec = spring(stiffness = 300f)),
+                    exit = fadeOut(animationSpec = spring(stiffness = 500f))
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = stringResource(
+                                if (viewModel.activeFilterCount > 0) R.string.no_apps_match_filters
+                                else R.string.no_apps_found
+                            ),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (viewModel.activeFilterCount > 0) {
+                            TextButton(onClick = { viewModel.resetFilters() }) {
+                                Text(stringResource(R.string.reset))
+                            }
+                        }
+                    }
+                }
+                AnimatedVisibility(
+                    visible = appsToDisplay.isNotEmpty(),
+                    enter = fadeIn(animationSpec = spring(stiffness = 400f)),
+                    exit = fadeOut(animationSpec = spring(stiffness = 500f))
+                ) {
+                ExpressiveLazyList(
+                state = listState,
+                modifier = Modifier.gamepadScreenEntry(page = pageIndex),
+                items = appsToDisplay,
+                key = { it.packageName },
+                contentPadding = listContentPadding,
+                itemContentIndexed = { index, app ->
+                    ExpressiveListItem(
+                        onClick = { navController.navigate("app_settings/${app.packageName}") },
+                        headlineContent = {
+                            Text(
+                                text = app.label,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        supportingContent = {
+                            Column {
+                                Text(
+                                    text = app.packageName,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                Row(modifier = Modifier.padding(top = 4.dp)) {
+                                    if (app.isEnabledInConfig) {
+                                        LabelText(
+                                            text = stringResource(R.string.label_enabled),
+                                            color = Color(0xFF4CAF50)
+                                        )
+                                    } else {
+                                        LabelText(stringResource(R.string.label_disabled), MaterialTheme.colorScheme.error)
+                                    }
+                                    if (app.isRecommended) {
+                                        LabelText(stringResource(R.string.label_recommended), MaterialTheme.colorScheme.primary)
+                                    }
+                                    if (app.isSystem) {
+                                        LabelText(stringResource(R.string.label_system), MaterialTheme.colorScheme.secondary)
+                                    }
+                                }
+                            }
+                        },
+                        leadingContent = {
+                            AppIconImage(
+                                app = app,
+                                size = 60.dp
+                            )
+                        },
+                        focusKey = app.packageName,
+                        focusIndex = index
+                    )
+                }
+            )
+                }
+
+            PullToRefreshDefaults.LoadingIndicator(
+                state = pullToRefreshState,
+                isRefreshing = viewModel.isRefreshing,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = innerPadding.calculateTopPadding())
+            )
+        }
+    }
+
+    AppFilterSheet(
+        show = showFilterSheet,
+        onDismiss = {
+            requestHideFilterSheet = false
+            showFilterSheet = false
+        },
+        viewModel = viewModel,
+        onSystemFilterChange = { viewModel.systemFilter = it },
+        onReset = { viewModel.resetFilters() },
+        externalHideRequest = requestHideFilterSheet,
+        onExternalHideConsumed = {
+            requestHideFilterSheet = false
+            showFilterSheet = false
+        }
+    )
+}
+
+@Composable
+fun ApplistTopAppBar(
+    scrollBehavior: TopAppBarScrollBehavior,
+    isSearchMode: Boolean,
+    onSearchModeChange: (Boolean) -> Unit,
+    searchQuery: TextFieldValue,
+    onSearchChange: (TextFieldValue) -> Unit,
+    onOpenFilters: () -> Unit,
+    activeFilterCount: Int,
+    onRefresh: () -> Unit,
+    focusRequester: FocusRequester
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    val motionScheme = MaterialTheme.motionScheme
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (!isSearchMode) Modifier.gamepadNotFocusable() else Modifier)
+            .appBarFade(colorScheme.surface, scrollBehavior.state.overlappedFraction)
+            .statusBarsPadding()
+    ) {
+        AnimatedContent(
+            targetState = isSearchMode,
+            transitionSpec = { 
+                fadeIn(animationSpec = tween(200)) togetherWith fadeOut(animationSpec = tween(200)) 
+            },
+            label = "search_bar_transition"
+        ) { searching ->
+            if (searching) {
+                LaunchedEffect(Unit) {
+                    focusRequester.requestFocus()
+                }
+
+                TopAppBar(
+                    title = {
+                        TextField(
+                            value = searchQuery,
+                            onValueChange = onSearchChange,
+                            placeholder = { Text(stringResource(R.string.search_apps)) },
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(focusRequester),
+                            textStyle = LocalTextStyle.current.copy(textDirection = TextDirection.Ltr),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                                disabledIndicatorColor = Color.Transparent
+                            )
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(
+                            onClick = { onSearchModeChange(false) },
+                            modifier = Modifier.focusProperties { canFocus = false }
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.cd_back))
+                        }
+                    },
+                    actions = {
+                        if (searchQuery.text.isNotEmpty()) {
+                            GamepadActionBadge(topAction = false) {
+                                IconButton(
+                                    onClick = { onSearchChange(TextFieldValue("")) },
+                                    modifier = Modifier.focusProperties { canFocus = false }
+                                ) {
+                                    Icon(Icons.Default.Clear, contentDescription = stringResource(R.string.cd_clear))
+                                }
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        scrolledContainerColor = Color.Transparent
+                    ),
+                    windowInsets = WindowInsets(0, 0, 0, 0)
+                )
+            } else {
+                LargeFlexibleTopAppBar(
+                    scrollBehavior = scrollBehavior,
+                    windowInsets = WindowInsets(0, 0, 0, 0),
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        scrolledContainerColor = Color.Transparent
+                    ),
+                    title = {
+                        Text(
+                            text = stringResource(R.string.applist_title),
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    navigationIcon = {
+                        Box(
+                            modifier = Modifier
+                                .padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp)
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(colorScheme.surfaceVariant)
+                        ) {
+                            Image(
+                                painter = painterResource(R.drawable.avatar),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    },
+                    actions = {
+                        // Square/X = search, Triangle/Y = the filter (top action).
+                        GamepadActionBadge(topAction = false) {
+                            IconButton(
+                                onClick = { onSearchModeChange(true) },
+                                modifier = Modifier.focusProperties { canFocus = false }
+                            ) {
+                                Icon(Icons.Default.Search, stringResource(R.string.cd_search))
+                            }
+                        }
+                        GamepadActionBadge(topAction = true) {
+                            IconButton(
+                                onClick = onOpenFilters,
+                                modifier = Modifier.focusProperties { canFocus = false }
+                            ) {
+                                BadgedBox(
+                                    badge = {
+                                        AnimatedContent(
+                                            targetState = activeFilterCount,
+                                            transitionSpec = {
+                                                (scaleIn(
+                                                    animationSpec = motionScheme.defaultSpatialSpec(),
+                                                    initialScale = 0.4f
+                                                ) + fadeIn(motionScheme.defaultEffectsSpec())) togetherWith
+                                                    (scaleOut(
+                                                        animationSpec = motionScheme.defaultSpatialSpec(),
+                                                        targetScale = 0.4f
+                                                    ) + fadeOut(motionScheme.defaultEffectsSpec()))
+                                            },
+                                            label = "filterBadge"
+                                        ) { count ->
+                                            if (count > 0) {
+                                                Badge { Text(count.toString()) }
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        Icons.Default.FilterList,
+                                        contentDescription = stringResource(R.string.cd_filter),
+                                        tint = if (activeFilterCount > 0) colorScheme.primary
+                                               else colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                )
+            }
+        }
+    }
+}
+
+
+@Composable
+fun LabelText(text: String, color: Color) {
+    Surface(
+        color = color.copy(alpha = 0.1f),
+        shape = azShape(14.dp),
+        modifier = Modifier.padding(end = 6.dp)
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+            fontSize = 9.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = color
+        )
+    }
+}

@@ -1,0 +1,745 @@
+/*
+ * Copyright (C) 2026-2027 Zexshia
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
+
+package zx.azenith.ui.mainscreens
+
+import zx.azenith.ui.theme.azShape
+
+
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.*
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
+import com.topjohnwu.superuser.Shell
+import dev.jeziellago.compose.markdowntext.MarkdownText
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import zx.azenith.BuildConfig
+import zx.azenith.R
+import zx.azenith.ui.component.*
+import zx.azenith.ui.util.*
+import zx.azenith.ui.viewmodel.*
+
+
+fun isLauncherIconEnabled(context: Context): Boolean {
+    val pkg = context.packageManager
+    val componentName = ComponentName(context.packageName, "${context.packageName}.Launcher")
+    val state = pkg.getComponentEnabledSetting(componentName)
+    return state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+}
+
+/**
+ * Which LazyColumn item holds each searchable row, so a search result can scroll
+ * to it. Positional: the list is built inline and the rows carry no keys of their
+ * own. Sections are in here too -- a heading is a legitimate landing spot.
+ */
+private val SETTINGS_ROW_ITEMS: Map<String, Int> = mapOf(
+    "settings.about" to 6,
+    "settings.disable_auto_mode" to 2,
+    "settings.disable_tweak" to 2,
+    "settings.experimental" to 3,
+    "settings.profile_notifications" to 2,
+    "settings.profile_timeout" to 2,
+    "settings.restart_service" to 4,
+    "settings.save_log" to 4,
+    "settings.section_features" to 1,
+    "settings.section_others" to 3,
+    "settings.show_icon" to 4,
+    "settings.show_toast" to 2,
+    "settings.tap_haptic" to 2,
+    "settings.uninstall" to 4,
+    "settings.verbose_log" to 4,
+)
+
+@Composable
+fun SettingsScreen(
+    navController: NavController,
+    settingsViewModel: SettingsViewModel = viewModel()
+) {
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
+    val context = LocalContext.current
+    val listState = rememberLazyListState()
+
+    // Search results land here: entry id -> the LazyColumn item
+    // holding that row.
+    val jumpPulse = listState.searchJumpTarget(
+        owns = { it.startsWith("settings.") },
+        indexOf = { id -> SETTINGS_ROW_ITEMS[id] }
+    )
+    
+    var showLogBottomSheet by remember { mutableStateOf(false) }
+    var requestHideLogSheet by remember { mutableStateOf(false) }
+    
+    val restartToastText = stringResource(R.string.toast_restarting_service)
+    
+    val uiState by settingsViewModel.uiState.collectAsStateWithLifecycle()
+    
+    var isLauncherVisible by rememberSaveable { 
+        mutableStateOf(isLauncherIconEnabled(context)) 
+    }
+    var showChangelogSheet by remember { mutableStateOf(false) }
+    var requestHideChangelogSheet by remember { mutableStateOf(false) }
+    var changelogText by remember { mutableStateOf("") }
+    
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.withContext(Dispatchers.IO) {
+            try {
+                changelogText = context.assets.open("changelog.md").bufferedReader().use { it.readText() }
+            } catch (e: Exception) {
+                changelogText = context.getString(R.string.err_failed_load_changelog) + "\n${e.message}"
+            }
+        }
+    }
+    
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    
+
+    val loadingDialog = rememberLoadingDialog()
+    val uninstallDialog = rememberConfirmDialog(
+        onConfirm = {
+            Shell.cmd("sh /data/adb/modules/AZenith/uninstall.sh").submit()
+        },
+        onDismiss = {}
+    )
+
+    // --- Reboot confirm dialog plumbing ---
+    var pendingToggle by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val rebootDialog = rememberConfirmDialog(
+        onConfirm = {
+            pendingToggle?.invoke()
+            pendingToggle = null
+        },
+        onDismiss = { pendingToggle = null }
+    )
+
+    // Gamepad shortcuts: Square opens Settings search, Triangle toggles the
+    // changelog sheet.
+    val isCurrentPage = LocalIsCurrentPagerPage.current
+    val isPagerActive = LocalMainPagerActive.current
+    val pageIndex = LocalPagerPageIndex.current
+    RegisterGamepadActions(
+        enabled = isCurrentPage && isPagerActive,
+        hasSearch = true,
+        isSearchOpen = false,
+        onSearchToggle = { navController.navigate(SearchTab.Settings.searchRoute) },
+        hasTopAction = true,
+        isTopActionOpen = showChangelogSheet,
+        onTopAction = { showChangelogSheet = !showChangelogSheet },
+        onCloseOverlay = {
+            var closed = false
+            if (showChangelogSheet && !requestHideChangelogSheet) { requestHideChangelogSheet = true; closed = true }
+            if (showLogBottomSheet && !requestHideLogSheet) { requestHideLogSheet = true; closed = true }
+            if (loadingDialog.isShown) { loadingDialog.hide(); closed = true }
+            if (uninstallDialog.isShown) { uninstallDialog.cancel(); closed = true }
+            if (rebootDialog.isShown) { rebootDialog.cancel(); closed = true }
+            closed
+        },
+        scrollState = listState,
+        onScrollDelta = { delta ->
+            scrollBehavior.state.heightOffset =
+                (scrollBehavior.state.heightOffset - delta)
+                    .coerceIn(scrollBehavior.state.heightOffsetLimit, 0f)
+        }
+    )
+
+    fun toggleWithRebootCheck(key: String, isChecked: Boolean, apply: () -> Unit) {
+        if (RebootManager.wouldRequireReboot(key, isChecked)) {
+            pendingToggle = apply
+            rebootDialog.showConfirm(
+                title = context.getString(R.string.dialog_reboot_required_title),
+                content = context.getString(R.string.reboot_required_content),
+                confirm = context.getString(R.string.yes),
+                dismiss = context.getString(R.string.no)
+            )
+        } else {
+            apply()
+        }
+    }
+    // ---------------------------------------
+    
+    LaunchedEffect(uiState.isLoaded) {
+        if (uiState.isLoaded) {
+            RebootManager.captureBaselineOnce("disable_tweak", uiState.disableTweak)
+        }
+    }
+    
+    val createLogLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/gzip")) { uri ->
+        uri?.let { destinationUri ->
+            coroutineScope.launch {
+                val success = loadingDialog.withLoading {
+
+                    val logFile = dumpDiagnosticLogs(context, saveToDownloads = false)
+                    
+                    if (logFile != null && logFile.exists()) {
+
+                        try {
+                            context.contentResolver.openOutputStream(destinationUri)?.use { outputStream ->
+                                logFile.inputStream().use { inputStream ->
+                                    inputStream.copyTo(outputStream)
+                                }
+                            }
+                            true
+                        } catch (e: Exception) {
+                            false
+                        } finally {
+
+                            logFile.delete() 
+                        }
+                    } else {
+                        false
+                    }
+                }
+                
+                if (success) {
+                    snackbarHostState.showSnackbar(context.getString(R.string.toast_log_save_success))
+                } else {
+                    snackbarHostState.showSnackbar(context.getString(R.string.toast_log_save_fail))
+                }
+            }
+        }
+    }
+    
+    var logFileToDelete by remember { mutableStateOf<File?>(null) }
+    
+    val shareLogLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { 
+        logFileToDelete?.let { file ->
+            if (file.exists()) {
+                file.delete()
+            }
+            logFileToDelete = null
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = if (!isLandscapeNav()) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier,
+            topBar = { 
+                // Landscape drops the bar: the dock names the page and carries both actions.
+                if (!isLandscapeNav()) {
+                    SettingsScreenTopAppBar(
+                        scrollBehavior = scrollBehavior,
+                        onSearchClick = { navController.navigate(SearchTab.Settings.searchRoute) },
+                        onChangelogClick = { showChangelogSheet = true }
+                    ) 
+                }
+                PublishNavDockActions(
+                    listOf(
+                        NavDockAction(
+                            icon = Icons.Default.Search,
+                            contentDescription = stringResource(R.string.cd_search),
+                            onClick = { navController.navigate(SearchTab.Settings.searchRoute) }
+                        ),
+                        NavDockAction(
+                            icon = Icons.AutoMirrored.Rounded.TextSnippet,
+                            contentDescription = stringResource(R.string.cd_changelog),
+                            onClick = { showChangelogSheet = true },
+                            topActionBadge = true
+                        )
+                    )
+                )
+            },
+            snackbarHost = {
+                ZenithSnackbarHost(
+                    hostState = snackbarHostState,
+                    portraitBottomPadding = 100.dp,
+                    landscapeDockClearance = true
+                )
+            },
+            contentColor = ScaffoldContentColor(),
+            containerColor = ScaffoldContainerColor(MaterialTheme.colorScheme.surface)
+        ) { innerPadding ->
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize().hazePageSource().gamepadScreenEntry(page = pageIndex),
+                contentPadding = PaddingValues(
+                    top = innerPadding.calculateTopPadding(),
+                    start = 16.dp + safeAreaStartInset(),
+                    end = 16.dp + navBarEndClearance(),
+                    bottom = navBarBottomClearance(
+                        WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                    )
+                )
+            ) {
+                item {
+                    Spacer(modifier = Modifier.height(16.dp)) 
+
+                    ExpressiveList(
+                        content = listOf(
+                            { AppInfoHeaderContent() },
+                            {
+                                ExpressiveListItem(
+                                    onClick = { navController.navigate("color_palette") },
+                                    headlineContent = { Text(stringResource(R.string.personalization_title)) },
+                                    supportingContent = { Text(stringResource(R.string.personalization_desc)) },
+                                    leadingContent = { LeadingIcon(icon = Icons.Filled.Palette) },
+                                    trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) }
+                                )
+                            }
+                        )
+                    )
+                }
+
+                item { JumpRow(activeId = jumpPulse, entryId = "settings.section_features", highlightShape = azShape(14.dp)) { SettingsSectionTitle(stringResource(R.string.section_features)) } }
+
+                item {
+                    if (uiState.isLoaded) {
+                        ExpressiveList(
+                            content = listOf(
+                                {
+                                    JumpRow(activeId = jumpPulse, entryId = "settings.tap_haptic") {
+                                        ExpressiveSwitchItem(
+                                                                                icon = Icons.Filled.Vibration,
+                                                                                title = stringResource(R.string.tap_haptic_feedback),
+                                                                                checked = uiState.tapHaptic,
+                                                                                onCheckedChange = settingsViewModel::onTapHapticToggle,
+                                                                                focusKey = "settings.tap_haptic",
+                                                                                focusIndex = 2
+                                                                            )
+                                    }
+                                },
+                                {
+                                    JumpRow(activeId = jumpPulse, entryId = "settings.show_toast") {
+                                        ExpressiveSwitchItem(
+                                                                                icon = Icons.Filled.Notifications,
+                                                                                title = stringResource(R.string.show_toast),
+                                                                                checked = uiState.stateToast,
+                                                                                onCheckedChange = settingsViewModel::setShowToast,
+                                                                                focusKey = "settings.show_toast",
+                                                                                focusIndex = 2
+                                                                            )
+                                    }
+                                },
+                                {
+                                    JumpRow(activeId = jumpPulse, entryId = "settings.profile_notifications") {
+                                        ExpressiveSwitchItem(
+                                                                                icon = Icons.Filled.NotificationsActive,
+                                                                                title = stringResource(R.string.show_notifications),
+                                                                                checked = uiState.profileNotifications,
+                                                                                onCheckedChange = settingsViewModel::setProfileNotifications,
+                                                                                focusKey = "settings.profile_notifications",
+                                                                                focusIndex = 2
+                                                                            )
+                                    }
+                                },
+                                {
+                                    JumpRow(activeId = jumpPulse, entryId = "settings.disable_auto_mode") {
+                                        ExpressiveSwitchItem(
+                                                                                icon = Icons.Filled.Assistant,
+                                                                                title = stringResource(R.string.disable_auto_mode),
+                                                                                summary = stringResource(R.string.disable_auto_mode_desc),
+                                                                                checked = uiState.autoMode,
+                                                                                onCheckedChange = settingsViewModel::setAutoMode,
+                                                                                focusKey = "settings.disable_auto_mode",
+                                                                                focusIndex = 2
+                                                                            )
+                                    }
+                                },
+                                {
+                                    JumpRow(activeId = jumpPulse, entryId = "settings.disable_tweak") {
+                                        ExpressiveSwitchItem(
+                                                                                icon = Icons.Filled.DeveloperBoardOff,
+                                                                                title = stringResource(R.string.disable_tweak),
+                                                                                summary = stringResource(R.string.disable_tweak_desc),
+                                                                                checked = uiState.disableTweak,
+                                                                                onCheckedChange = { isChecked ->
+                                                                                    toggleWithRebootCheck("disable_tweak", isChecked) {
+                                                                                        settingsViewModel.setDisableTweak(isChecked)
+                                                                                        RebootManager.checkAgainstBaseline("disable_tweak", isChecked)
+                                                                                    }
+                                                                                },
+                                                                                focusKey = "settings.disable_tweak",
+                                                                                focusIndex = 2
+                                                                            )
+                                    }
+                                },
+                                {
+                                    JumpRow(activeId = jumpPulse, entryId = "settings.profile_timeout") {
+                                        ExpressiveSwitchItem(
+                                                                                icon = Icons.Filled.Timer,
+                                                                                title = stringResource(R.string.profile_timeout),
+                                                                                summary = stringResource(R.string.profile_timeout_desc),
+                                                                                checked = uiState.profileTimeout,
+                                                                                onCheckedChange = settingsViewModel::setProfileTimeout,
+                                                                                focusKey = "settings.profile_timeout",
+                                                                                focusIndex = 2
+                                                                            )
+                                    }
+                                }
+                            )
+                        )
+                    } else {
+                        SkeletonSettingsList(rowCount = 3)
+                    }
+                }
+
+                item { JumpRow(activeId = jumpPulse, entryId = "settings.section_others", highlightShape = azShape(14.dp)) { SettingsSectionTitle(stringResource(R.string.section_others)) } }
+                item {
+                    if (uiState.isLoaded) {
+                        ExpressiveList(
+                            content = listOf(
+                                {
+                                    JumpRow(activeId = jumpPulse, entryId = "settings.show_icon") {
+                                        ExpressiveSwitchItem(
+                                                                                icon = Icons.Rounded.AddHome,
+                                                                                title = stringResource(R.string.show_icon),
+                                                                                checked = isLauncherVisible,
+                                                                                onCheckedChange = { isChecked ->
+                                                                                    isLauncherVisible = isChecked
+                                                                                    val pkg = context.packageManager
+                                                                                    val componentName = ComponentName(context.packageName, "${context.packageName}.Launcher")
+                                        
+                                                                                    val newState = if (isChecked) {
+                                                                                        PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                                                                                    } else {
+                                                                                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                                                                                    }
+                                        
+                                                                                    pkg.setComponentEnabledSetting(componentName, newState, PackageManager.DONT_KILL_APP)
+                                                                                },
+                                                                                focusKey = "settings.show_icon",
+                                                                                focusIndex = 4
+                                                                            )
+                                    }
+                                },
+                                {
+                                    JumpRow(activeId = jumpPulse, entryId = "settings.restart_service") {
+                                        ExpressiveListItem(
+                                                                                onClick = {
+                                                                                    Shell.cmd("/data/adb/modules/AZenith/system/bin/sys.azenith-service --rerun").submit { result ->
+                                                                                        if (result.isSuccess) {
+                                                                                            coroutineScope.launch {
+                                                                                                snackbarHostState.showSnackbar(restartToastText)
+                                                                                            }
+                                                                                        }
+                                                                                    }
+                                                                                },
+                                                                                headlineContent = { Text(stringResource(R.string.restart_service)) },
+                                                                                supportingContent = { Text(stringResource(R.string.restart_service_desc)) },
+                                                                                leadingContent = { LeadingIcon(icon = Icons.Filled.RestartAlt) },
+                                                                                trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) },
+                                                                                focusKey = "settings.restart_service",
+                                                                                focusIndex = 4
+                                                                            )
+                                    }
+                                },
+                                {
+                                    JumpRow(activeId = jumpPulse, entryId = "settings.save_log") {
+                                        ExpressiveListItem(
+                                                                                onClick = { showLogBottomSheet = true },
+                                                                                headlineContent = { Text(stringResource(R.string.save_log)) },
+                                                                                supportingContent = { Text(stringResource(R.string.save_log_desc)) },
+                                                                                leadingContent = { LeadingIcon(icon = Icons.Filled.Save) },
+                                                                                trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) },
+                                                                                focusKey = "settings.save_log",
+                                                                                focusIndex = 4
+                                                                            )
+                                    }
+                                },
+                                {
+                                    JumpRow(activeId = jumpPulse, entryId = "settings.verbose_log") {
+                                        ExpressiveSwitchItem(
+                                                                                icon = Icons.Filled.BugReport,
+                                                                                title = stringResource(R.string.allow_verbose_log),
+                                                                                checked = uiState.debugMode,
+                                                                                onCheckedChange = settingsViewModel::setDebugMode,
+                                                                                focusKey = "settings.verbose_log",
+                                                                                focusIndex = 4
+                                                                            )
+                                    }
+                                },
+                                {
+                                    JumpRow(activeId = jumpPulse, entryId = "settings.experimental") {
+                                        ExpressiveListItem(
+                                            onClick = { navController.navigate("experimentalscreen") },
+                                            headlineContent = { Text(stringResource(R.string.section_experimental)) },
+                                            supportingContent = { Text(stringResource(R.string.experimental_menu_desc)) },
+                                            leadingContent = { LeadingIcon(icon = Icons.Rounded.Science) },
+                                            trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) },
+                                            focusKey = "settings.experimental",
+                                            focusIndex = 4
+                                        )
+                                    }
+                                },
+                                {
+                                    JumpRow(activeId = jumpPulse, entryId = "settings.uninstall") {
+                                        ExpressiveListItem(
+                                                                                onClick = {
+                                                                                    uninstallDialog.showConfirm(
+                                                                                        title = context.getString(R.string.uninstall),
+                                                                                        content = context.getString(R.string.uninstall_confirm_content),
+                                                                                        confirm = context.getString(R.string.yes),
+                                                                                        dismiss = context.getString(R.string.no)
+                                                                                    )
+                                                                                },
+                                                                                headlineContent = { Text(stringResource(R.string.uninstall)) },
+                                                                                leadingContent = { LeadingIcon(icon = Icons.Filled.Delete) },
+                                                                                trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) },
+                                                                                focusKey = "settings.uninstall",
+                                                                                focusIndex = 4
+                                                                            )
+                                    }
+                                }
+                            )
+                        )
+                    } else {
+                        SkeletonSettingsList(rowCount = 3)
+                    }
+                }
+
+                item { SettingsSectionTitle(stringResource(R.string.section_about)) }
+                item {
+                    ExpressiveList(
+                        content = listOf {
+                            JumpRow(activeId = jumpPulse, entryId = "settings.about") {
+                                ExpressiveListItem(
+                                                                onClick = { navController.navigate("aboutscreen") }, 
+                                                                headlineContent = { Text(stringResource(R.string.about_azenith)) },
+                                                                supportingContent = {
+                                                                    Text(stringResource(R.string.version_format, BuildConfig.VERSION_NAME))
+                                                                },
+                                                                leadingContent = { LeadingIcon(icon = Icons.Filled.ContactPage) },
+                                                                trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) },
+                                                                focusKey = "settings.about",
+                                                                focusIndex = 6
+                                                            )
+                            }
+                        }
+                    )
+                }
+            }
+        }
+
+
+        LoadingDialogHost(handle = loadingDialog)
+        ConfirmDialogHost(handle = uninstallDialog)
+        ConfirmDialogHost(handle = rebootDialog)
+
+        RootAppDialog {
+            AZenithSheet(
+                show = showLogBottomSheet,
+                onDismiss = {
+                    showLogBottomSheet = false
+                    requestHideLogSheet = false
+                },
+                title = stringResource(R.string.str_logs_diagnostics),
+                style = SheetRowStyle.Action,
+                items = listOf(
+                    SheetItem(
+                        label = stringResource(R.string.save_log),
+                        summary = stringResource(R.string.str_save_compressed_logs_to_a_fold),
+                        icon = Icons.Rounded.FolderSpecial,
+                    ),
+                    SheetItem(
+                        label = stringResource(R.string.str_send_logs),
+                        summary = stringResource(R.string.str_share_compressed_logs_to_other),
+                        icon = Icons.Rounded.Share,
+                    ),
+                ),
+                onItemClick = { index ->
+                    if (index == 0) {
+                        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                        val fileName = "AZenith_Logs_$timeStamp.tar.gz"
+                        createLogLauncher.launch(fileName)
+                    } else {
+                        coroutineScope.launch {
+                            val logFile = loadingDialog.withLoading {
+                                dumpDiagnosticLogs(context, saveToDownloads = false)
+                            }
+
+                            if (logFile != null) {
+                                logFileToDelete = logFile
+                                val intent = getShareLogIntent(context, logFile)
+                                shareLogLauncher.launch(intent)
+                            } else {
+                                snackbarHostState.showSnackbar(context.getString(R.string.toast_log_gather_fail))
+                            }
+                        }
+                    }
+                },
+                externalHideRequest = requestHideLogSheet,
+                onExternalHideConsumed = { requestHideLogSheet = false },
+            )
+        }
+        RootAppDialog {
+            AZenithSheetContent(
+                show = showChangelogSheet,
+                onDismiss = {
+                    showChangelogSheet = false
+                    requestHideChangelogSheet = false
+                },
+                title = stringResource(R.string.str_changelog),
+                externalHideRequest = requestHideChangelogSheet,
+                onExternalHideConsumed = { requestHideChangelogSheet = false },
+                content = {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 24.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 24.dp)
+                    ) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        MarkdownText(
+                            markdown = changelogText,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(
+                            modifier = Modifier.height(
+                                WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 64.dp
+                            )
+                        )
+                    }
+                }
+            )
+        }
+
+    }
+}
+
+@Composable
+fun SettingsSectionTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(
+            start = 12.dp,
+            end = 12.dp,
+            top = 16.dp,
+            bottom = 8.dp
+        )
+    )
+}
+
+@Composable
+fun SettingsScreenTopAppBar(
+    scrollBehavior: TopAppBarScrollBehavior,
+    onSearchClick: () -> Unit,
+    onChangelogClick: () -> Unit
+) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .gamepadNotFocusable()
+            .appBarFade(colorScheme.surface, scrollBehavior.state.overlappedFraction)
+            .statusBarsPadding()
+    ) {
+        LargeFlexibleTopAppBar(
+            navigationIcon = {
+                Box(
+                    modifier = Modifier
+                        .padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp)
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(colorScheme.surfaceVariant)
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.avatar),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            },
+            title = {
+                Text(
+                    text = stringResource(R.string.settings),
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            actions = {
+                GamepadActionBadge(topAction = false) {
+                    IconButton(
+                        onClick = onSearchClick,
+                        modifier = Modifier.focusProperties { canFocus = false }
+                    ) {
+                        Icon(Icons.Default.Search, contentDescription = stringResource(R.string.cd_search))
+                    }
+                }
+                GamepadActionBadge(topAction = true) {
+                    IconButton(
+                        onClick = onChangelogClick,
+                        modifier = Modifier.focusProperties { canFocus = false }
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.TextSnippet,
+                            contentDescription = stringResource(R.string.cd_changelog)
+                        )
+                    }
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent,
+                scrolledContainerColor = Color.Transparent
+            ),
+            scrollBehavior = scrollBehavior,
+            windowInsets = WindowInsets(0, 0, 0, 0)
+        )
+    }
+}

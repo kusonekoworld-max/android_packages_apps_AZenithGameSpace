@@ -1,0 +1,2411 @@
+/*
+ * Copyright (C) 2026-2027 Zexshia
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
+
+package zx.azenith.ui.gamespace
+
+import android.content.Context
+import android.content.Intent
+import zx.azenith.ui.theme.ColorMode
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AddPhotoAlternate
+import androidx.compose.material.icons.rounded.Android
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.AspectRatio
+import androidx.compose.material.icons.rounded.Cable
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.DoNotDisturbOn
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.PowerSettingsNew
+import androidx.compose.material.icons.rounded.RocketLaunch
+import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.SportsEsports
+import androidx.compose.material.icons.rounded.SwapVerticalCircle
+import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Wallpaper
+import androidx.compose.material.icons.rounded.WebStories
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.chrisbanes.haze.HazeInput
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.blur.HazeBlurStyle
+import dev.chrisbanes.haze.blur.hazeBlur
+import dev.chrisbanes.haze.blur.material3.Material3
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import zx.azenith.R
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
+import kotlin.math.roundToInt
+import zx.azenith.ui.component.AppIconImage
+import zx.azenith.ui.component.ExpressiveDropdownItem
+import zx.azenith.ui.component.ExpressiveInfoCard
+import zx.azenith.ui.component.ExpressiveList
+import zx.azenith.ui.component.ExpressiveListItem
+import zx.azenith.ui.component.ExpressiveSliderItem
+import zx.azenith.ui.component.LeadingIcon
+import zx.azenith.ui.component.MediaBannerRenderer
+import zx.azenith.ui.component.ZXDropDownMenu
+import zx.azenith.ui.component.ZXDropDownState
+import zx.azenith.ui.component.ZenithSlider
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalFocusManager
+import zx.azenith.ui.component.GamepadFocusNav
+import zx.azenith.ui.component.GamepadInput
+import zx.azenith.ui.component.gamepadFocusOutline
+import zx.azenith.ui.component.rememberZXDropDownState
+import zx.azenith.ui.component.zxDropDownAnchor
+import zx.azenith.ui.subscreens.getAppDetails
+import zx.azenith.ui.subscreens.isGameCategory
+import zx.azenith.ui.util.AppConfig
+import zx.azenith.ui.util.DebugUtils
+import zx.azenith.ui.util.PropertyUtils
+import zx.azenith.ui.util.clearHeaderImage
+import zx.azenith.ui.util.getGameWallpaperBlur
+import zx.azenith.ui.util.getGameWallpaperDim
+import zx.azenith.ui.util.getGameWallpaperMode
+import zx.azenith.ui.util.getGameWallpaperUri
+import zx.azenith.ui.util.getHeaderImage
+import zx.azenith.ui.util.getHomeWallpaperBlur
+import zx.azenith.ui.util.getSupportedDownscaleFactors
+import zx.azenith.ui.util.getSupportedFpsTargets
+import zx.azenith.ui.util.getSupportedRefreshRates
+import zx.azenith.ui.util.isGameWallpaperEnabled
+import zx.azenith.ui.util.isHomeWallpaperEnabled
+import zx.azenith.ui.util.saveHeaderImage
+import zx.azenith.ui.util.saveMediaDirectly
+import zx.azenith.ui.util.setGameWallpaperBlur
+import zx.azenith.ui.util.setGameWallpaperDim
+import zx.azenith.ui.util.setGameWallpaperEnabled
+import zx.azenith.ui.util.setGameWallpaperMode
+import zx.azenith.ui.util.setGameWallpaperUri
+import zx.azenith.ui.util.setHomeWallpaperBlur
+import zx.azenith.ui.util.setHomeWallpaperEnabled
+import zx.azenith.ui.viewmodel.AppSettingsViewModel
+import zx.azenith.ui.viewmodel.ApplistViewmodel
+
+/**
+ * Game Space App Tuning Sheet: slides up from below with Material 3 bouncy expressive physics over
+ * a Haze-blurred backdrop, styled natively in the two-pane Game Space layout.
+ */
+@Composable
+internal fun ZXGameSpaceAppSettingsOverlay(
+    visible: Boolean,
+    packageName: String?,
+    allApps: List<ApplistViewmodel.AppInfo>,
+    hazeState: HazeState,
+    onLaunch: (ApplistViewmodel.AppInfo) -> Unit,
+    onClose: () -> Unit,
+    viewModel: AppSettingsViewModel = viewModel()
+) {
+    val context = LocalContext.current
+    val scheme = MaterialTheme.colorScheme
+    val motion = MaterialTheme.motionScheme
+    val focusManager = LocalFocusManager.current
+    val scope = rememberCoroutineScope()
+
+    val masterRequester = remember { FocusRequester() }
+    val rightPaneRequester = remember { FocusRequester() }
+    val rightPaneFirstRequester = remember { FocusRequester() }
+    var isRightPaneFirstAttached by remember { mutableStateOf(false) }
+    var lastLeftRequester by remember { mutableStateOf<FocusRequester?>(null) }
+    var rightPaneHasFocus by remember { mutableStateOf(false) }
+
+    LaunchedEffect(visible) {
+        if (visible && (GameSpaceInputSource.isGamepadLast || GamepadInput.dpadMode || GamepadInput.controllerConnected)) {
+            GamepadInput.onDpadKey()
+        }
+    }
+
+    var activePkg by remember { mutableStateOf(packageName) }
+    if (packageName != null) {
+        activePkg = packageName
+    }
+
+    LaunchedEffect(activePkg) {
+        if (activePkg != null) {
+            viewModel.loadConfig()
+        }
+    }
+
+    GameSpacePopupContainer(
+        visible = visible,
+        name = "AppSettings",
+        modifier = Modifier.fillMaxSize(),
+        firstFocusRequester = masterRequester
+    ) {
+    // Edge-to-edge stationary scrim: smoothly dims and blurs underlying UI and prevents tap-through
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(animationSpec = motion.defaultEffectsSpec()),
+        exit = fadeOut(animationSpec = motion.defaultEffectsSpec()),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .hazeBlur(
+                    input = HazeInput.Sources(hazeState),
+                    style = HazeBlurStyle.Material3(
+                        containerColor = scheme.surfaceContainerLowest.copy(alpha = 0.55f)
+                    ) {
+                        blurRadius(28.dp)
+                    }
+                )
+                .background(scheme.scrim.copy(alpha = 0.40f))
+                .focusProperties { canFocus = false }
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClose
+                )
+        )
+    }
+
+    AnimatedVisibility(
+        visible = visible,
+        enter = slideInVertically(
+            initialOffsetY = { fullHeight -> fullHeight },
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioLowBouncy,
+                stiffness = Spring.StiffnessMediumLow
+            )
+        ) + fadeIn(animationSpec = motion.defaultEffectsSpec()),
+        exit = slideOutVertically(
+            targetOffsetY = { fullHeight -> fullHeight },
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMedium
+            )
+        ) + fadeOut(animationSpec = motion.defaultEffectsSpec()),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        val pkg = activePkg ?: return@AnimatedVisibility
+        val resolvedApp = remember(pkg, allApps) {
+            allApps.find { it.packageName == pkg }
+        }
+        val appDetails = remember(pkg) { getAppDetails(context, pkg) }
+        val isGameApp = remember(pkg) { isGameCategory(context, pkg) }
+        val config = viewModel.fullConfig[pkg]
+        var localMasterOn by remember(pkg, config != null) { mutableStateOf(config != null) }
+
+        var isFullModeEnabled by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) {
+            isFullModeEnabled = DebugUtils.isFullModeEnabled()
+        }
+        var bypassSupported by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) {
+            bypassSupported = withContext(Dispatchers.IO) {
+                val path = PropertyUtils.get("persist.sys.azenithconf.bypasspath", "")
+                path != "UNSUPPORTED" && path != "NEED_SETUP"
+            }
+        }
+
+        val booleanModes = listOf(
+            stringResource(R.string.default_label),
+            stringResource(R.string.on_label),
+            stringResource(R.string.off_label)
+        )
+        val rendererModes = listOf(
+            stringResource(R.string.Renderer_Default),
+            stringResource(R.string.renderer_skia_vk),
+            stringResource(R.string.renderer_skia_vk_threaded),
+            stringResource(R.string.renderer_skiagl),
+            stringResource(R.string.renderer_skiagl_threaded),
+            stringResource(R.string.renderer_opengl_es),
+            stringResource(R.string.renderer_opengl_es_threaded),
+            stringResource(R.string.Renderer_Vulkan)
+        )
+        val rendererValues = listOf(
+            "default",
+            "skiavk",
+            "skiavkthreaded",
+            "skiagl",
+            "skiaglthreaded",
+            "opengl",
+            "openglthreaded",
+            "vulkan"
+        )
+        val defaultLabel = stringResource(R.string.default_label)
+        val rawRefreshModes = remember { getSupportedRefreshRates(context) }
+        val rawDownscaleSteps = remember { getSupportedDownscaleFactors() }
+        val rawFpsSteps = remember { getSupportedFpsTargets(context) }
+        val downscaleDisplaySteps = remember(rawDownscaleSteps, defaultLabel) {
+            rawDownscaleSteps.map { if (it == "default") defaultLabel else it }
+        }
+        val fpsDisplaySteps = remember(rawFpsSteps, defaultLabel) {
+            rawFpsSteps.map { if (it == "default") defaultLabel else it }
+        }
+        val dynamicRefreshDisplayModes = remember(rawRefreshModes, defaultLabel) {
+            rawRefreshModes.map { mode ->
+                if (mode.equals("default", ignoreCase = true)) defaultLabel else mode
+            }
+        }
+        fun getBoolIndex(v: String?): Int = when (v) {
+            "true" -> 1
+            "false" -> 2
+            else -> 0
+        }
+
+        val insets = WindowInsets.displayCutout.asPaddingValues()
+        val layoutDirection = LocalLayoutDirection.current
+        val startPad = maxOf(24.dp, insets.calculateStartPadding(layoutDirection))
+        val endPad = maxOf(24.dp, insets.calculateEndPadding(layoutDirection))
+        val topPad = maxOf(18.dp, insets.calculateTopPadding())
+        val bottomPad = 14.dp
+
+        val doLaunch = {
+            android.util.Log.d("PAD", "gs appsettings launch pkg=$pkg")
+            if (resolvedApp != null) {
+                onLaunch(resolvedApp)
+            } else {
+                launchGame(context, pkg)
+            }
+        }
+        val openInfo = {
+            android.util.Log.d("PAD", "gs appsettings info pkg=$pkg")
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:$pkg")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            runCatching { context.startActivity(intent) }
+            Unit
+        }
+
+        CompositionLocalProvider(
+            LocalContentColor provides scheme.onSurface
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(start = startPad, end = endPad, top = topPad, bottom = bottomPad)
+                    .onPreviewKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown &&
+                            event.nativeKeyEvent.repeatCount == 0 &&
+                            !zx.azenith.ui.component.ZXDropDownNav.isActive
+                        ) {
+                            when (event.nativeKeyEvent.keyCode) {
+                                android.view.KeyEvent.KEYCODE_BUTTON_START -> {
+                                    doLaunch()
+                                    true
+                                }
+                                android.view.KeyEvent.KEYCODE_BUTTON_SELECT -> {
+                                    openInfo()
+                                    true
+                                }
+                                else -> false
+                            }
+                        } else {
+                            false
+                        }
+                    }
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Left GameSpace Identity Sidebar
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = scheme.surfaceContainerLow.copy(alpha = 0.90f),
+                        contentColor = scheme.onSurface,
+                        modifier = Modifier
+                            .width(264.dp)
+                            .fillMaxHeight()
+                            .focusGroup()
+                            .onPreviewKeyEvent { event ->
+                                if (event.type == KeyEventType.KeyDown &&
+                                    event.nativeKeyEvent.repeatCount == 0 &&
+                                    event.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT
+                                ) {
+                                    val dropdownActive = zx.azenith.ui.component.ZXDropDownNav.isActive
+                                    val sliderFocused = GamepadFocusNav.focusedSlider
+                                    if (!localMasterOn || dropdownActive || sliderFocused) {
+                                        android.util.Log.d(
+                                            "PAD",
+                                            "gs appsettings DPAD_RIGHT ignored masterOn=$localMasterOn " +
+                                                "dropdown=$dropdownActive slider=$sliderFocused attached=$isRightPaneFirstAttached return=false"
+                                        )
+                                        false
+                                    } else if (isRightPaneFirstAttached) {
+                                        val reqOk = rightPaneFirstRequester.requestFocus()
+                                        val moveOk = if (!reqOk) {
+                                            focusManager.moveFocus(FocusDirection.Right)
+                                        } else {
+                                            false
+                                        }
+                                        val moved = reqOk || moveOk
+                                        android.util.Log.d(
+                                            "PAD",
+                                            "gs appsettings DPAD_RIGHT masterOn=$localMasterOn dropdown=$dropdownActive " +
+                                                "slider=$sliderFocused attached=true reqOk=$reqOk fallbackRight=$moveOk return=$moved"
+                                        )
+                                        moved
+                                    } else {
+                                        android.util.Log.d(
+                                            "PAD",
+                                            "gs appsettings DPAD_RIGHT masterOn=$localMasterOn dropdown=$dropdownActive " +
+                                                "slider=$sliderFocused attached=false scheduling bounded retry"
+                                        )
+                                        scope.launch {
+                                            var moved = false
+                                            for (attempt in 1..12) {
+                                                androidx.compose.runtime.withFrameNanos { }
+                                                if (isRightPaneFirstAttached) {
+                                                    val reqOk = rightPaneFirstRequester.requestFocus()
+                                                    val moveOk = if (!reqOk) {
+                                                        focusManager.moveFocus(FocusDirection.Right)
+                                                    } else {
+                                                        false
+                                                    }
+                                                    moved = reqOk || moveOk
+                                                    android.util.Log.d(
+                                                        "PAD",
+                                                        "gs appsettings DPAD_RIGHT retry attempt=$attempt reqOk=$reqOk fallbackRight=$moveOk moved=$moved"
+                                                    )
+                                                    if (moved) break
+                                                }
+                                            }
+                                            if (!moved) {
+                                                val fallback = focusManager.moveFocus(FocusDirection.Right)
+                                                android.util.Log.d("PAD", "gs appsettings DPAD_RIGHT retry exhausted fallbackRight=$fallback")
+                                            }
+                                        }
+                                        true
+                                    }
+                                } else {
+                                    false
+                                }
+                            }
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(18.dp),
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        TopBarIconButton(
+                                            icon = Icons.Rounded.KeyboardArrowDown,
+                                            contentDescription = stringResource(R.string.cd_back),
+                                            onClick = onClose,
+                                            gamepadFocusable = false
+                                        )
+                                        Text(
+                                            text = stringResource(R.string.app_settings_title),
+                                            style = MaterialTheme.typography.titleMedium.copy(
+                                                fontWeight = FontWeight.ExtraBold
+                                            ),
+                                            color = scheme.onSurface
+                                        )
+                                    }
+                                }
+
+                                // App identity card
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = scheme.surfaceContainerHigh,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            if (resolvedApp != null) {
+                                                AppIconImage(app = resolvedApp, size = 48.dp)
+                                            } else {
+                                                Surface(
+                                                    shape = RoundedCornerShape(14.dp),
+                                                    color = scheme.primaryContainer,
+                                                    modifier = Modifier.size(48.dp)
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Icon(
+                                                            imageVector = Icons.Rounded.Android,
+                                                            contentDescription = null,
+                                                            tint = scheme.onPrimaryContainer
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = resolvedApp?.label ?: appDetails.first,
+                                                    style = MaterialTheme.typography.titleSmall.copy(
+                                                        fontWeight = FontWeight.Bold
+                                                    ),
+                                                    color = scheme.onSurface,
+                                                    maxLines = 2,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    text = pkg,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = scheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = scheme.secondaryContainer,
+                                                contentColor = scheme.onSecondaryContainer
+                                            ) {
+                                                Text(
+                                                    text = "v${appDetails.third}",
+                                                    style = MaterialTheme.typography.labelSmall.copy(
+                                                        fontWeight = FontWeight.Bold
+                                                    ),
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                                                )
+                                            }
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (localMasterOn) scheme.primaryContainer else scheme.surfaceContainerHighest,
+                                                contentColor = if (localMasterOn) scheme.onPrimaryContainer else scheme.onSurfaceVariant
+                                            ) {
+                                                Text(
+                                                    text = if (localMasterOn) {
+                                                        stringResource(R.string.gamespace_tuned)
+                                                    } else {
+                                                        stringResource(R.string.gamespace_untuned)
+                                                    },
+                                                    style = MaterialTheme.typography.labelSmall.copy(
+                                                        fontWeight = FontWeight.Bold
+                                                    ),
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Master Switch Card
+                                val masterShape = RoundedCornerShape(18.dp)
+                                val toggleMaster = {
+                                    val next = !localMasterOn
+                                    localMasterOn = next
+                                    viewModel.toggleMasterSwitch(pkg, next)
+                                    ApplistViewmodel.apps = ApplistViewmodel.apps.map {
+                                        if (it.packageName == pkg) it.copy(isEnabledInConfig = next) else it
+                                    }
+                                }
+                                Surface(
+                                    shape = masterShape,
+                                    color = if (localMasterOn) scheme.primaryContainer else scheme.surfaceContainerHigh,
+                                    contentColor = if (localMasterOn) scheme.onPrimaryContainer else scheme.onSurface,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .focusRequester(masterRequester)
+                                        .onFocusChanged {
+                                            if (it.isFocused) {
+                                                lastLeftRequester = masterRequester
+                                                android.util.Log.d(
+                                                    "PAD",
+                                                    "gs appsettings focusHolder=masterSwitch dpadMode=${GamepadInput.dpadMode}"
+                                                )
+                                            }
+                                        }
+                                        .gamepadFocusOutline(
+                                            shape = masterShape,
+                                            register = true,
+                                            onActivate = toggleMaster
+                                        )
+                                        .clip(masterShape)
+                                        .focusProperties { canFocus = false }
+                                        .clickable(onClick = toggleMaster)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.PowerSettingsNew,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = stringResource(R.string.master_switch),
+                                                style = MaterialTheme.typography.labelLarge.copy(
+                                                    fontWeight = FontWeight.Bold
+                                                ),
+                                                maxLines = 1
+                                            )
+                                            Text(
+                                                text = if (localMasterOn) "Active profile hooks" else "Tap to enable tuning",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = if (localMasterOn) {
+                                                    scheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                                } else {
+                                                    scheme.onSurfaceVariant
+                                                },
+                                                maxLines = 1
+                                            )
+                                        }
+                                        GameSpaceSwitch(
+                                            checked = localMasterOn,
+                                            onCheckedChange = null
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Bottom Quick Actions: Launch & System Info (touch + START/SELECT only, not gamepad-focusable)
+                            val showPadGlyphs = zx.azenith.ui.component.GamepadInput.controllerConnected ||
+                                zx.azenith.ui.component.GamepadInput.dpadMode
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                val launchShape = RoundedCornerShape(16.dp)
+                                Surface(
+                                    shape = launchShape,
+                                    color = scheme.primary,
+                                    contentColor = scheme.onPrimary,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(44.dp)
+                                        .clip(launchShape)
+                                        .focusProperties { canFocus = false }
+                                        .clickable(onClick = doLaunch)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.PlayArrow,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            text = stringResource(R.string.gamespace_play_game),
+                                            style = MaterialTheme.typography.labelLarge.copy(
+                                                fontWeight = FontWeight.Bold
+                                            ),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        if (showPadGlyphs) {
+                                            Spacer(Modifier.width(6.dp))
+                                            Icon(
+                                                painter = painterResource(R.drawable.ic_gp_start),
+                                                contentDescription = null,
+                                                tint = scheme.onPrimary.copy(alpha = 0.90f),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                val infoShape = RoundedCornerShape(16.dp)
+                                zx.azenith.ui.component.GamepadSelectBadge(size = 16.dp) {
+                                    Surface(
+                                        shape = infoShape,
+                                        color = scheme.secondaryContainer,
+                                        contentColor = scheme.onSecondaryContainer,
+                                        modifier = Modifier
+                                            .size(44.dp)
+                                            .clip(infoShape)
+                                            .focusProperties { canFocus = false }
+                                            .clickable(onClick = openInfo)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Info,
+                                                contentDescription = stringResource(R.string.str_app_info),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Right GameSpace Tuning Stage
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = scheme.surfaceContainerLow.copy(alpha = 0.85f),
+                        contentColor = scheme.onSurface,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .focusRequester(rightPaneRequester)
+                            .onFocusChanged { rightPaneHasFocus = it.hasFocus }
+                            .focusGroup()
+                            .onPreviewKeyEvent { event ->
+                                if (event.type == KeyEventType.KeyDown &&
+                                    event.nativeKeyEvent.repeatCount == 0 &&
+                                    event.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT &&
+                                    !GamepadFocusNav.focusedSlider &&
+                                    !zx.azenith.ui.component.ZXDropDownNav.isActive
+                                ) {
+                                    val target = lastLeftRequester ?: masterRequester
+                                    val moved = target.requestFocus()
+                                    android.util.Log.d("PAD", "gs appsettings DPAD_LEFT toLeftPanel moved=$moved")
+                                    moved
+                                } else {
+                                    false
+                                }
+                            }
+                    ) {
+                        AnimatedContent(
+                            targetState = localMasterOn,
+                            transitionSpec = {
+                                (fadeIn(motion.defaultEffectsSpec()) + scaleIn(
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioLowBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    ),
+                                    initialScale = 0.96f
+                                )).togetherWith(
+                                    fadeOut(motion.defaultEffectsSpec()) + scaleOut(targetScale = 0.98f)
+                                )
+                            },
+                            modifier = Modifier.fillMaxSize(),
+                            label = "AppTuningMasterContent"
+                        ) { enabled ->
+                            if (!enabled) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(28.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = scheme.secondaryContainer,
+                                            contentColor = scheme.onSecondaryContainer,
+                                            modifier = Modifier.size(64.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Tune,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(30.dp)
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            text = stringResource(R.string.master_switch),
+                                            style = MaterialTheme.typography.titleMedium.copy(
+                                                fontWeight = FontWeight.Bold
+                                            ),
+                                            color = scheme.onSurface
+                                        )
+                                        Text(
+                                            text = stringResource(R.string.master_switch_desc),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = scheme.onSurfaceVariant,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.widthIn(max = 360.dp)
+                                        )
+                                    }
+                                }
+                            } else {
+                                val displayConfig = config ?: AppConfig()
+
+                                val liteModeMenu = rememberZXDropDownState()
+                                val bypassMenu = rememberZXDropDownState()
+                                val preloadMenu = rememberZXDropDownState()
+                                val priorityMenu = rememberZXDropDownState()
+                                val dndMenu = rememberZXDropDownState()
+                                val refreshMenu = rememberZXDropDownState()
+                                val rendererMenu = rememberZXDropDownState()
+                                val boolValues = listOf("default", "true", "false")
+
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentPadding = PaddingValues(18.dp),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        item {
+                                            ExpressiveList(
+                                                content = listOf {
+                                                    ExpressiveInfoCard(
+                                                        supportingContent = {
+                                                            Text(
+                                                                text = stringResource(R.string.str_app_specific_settings_will_ove)
+                                                            )
+                                                        },
+                                                        leadingContent = {
+                                                            LeadingIcon(icon = Icons.Rounded.Info)
+                                                        },
+                                                        containerColor = scheme.surfaceContainerLow,
+                                                        onClick = {},
+                                                        modifier = Modifier.focusProperties { canFocus = false }
+                                                    )
+                                                }
+                                            )
+                                        }
+                                        item {
+                                            Text(
+                                                text = stringResource(R.string.section_performance).uppercase(),
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    letterSpacing = 1.2.sp
+                                                ),
+                                                color = scheme.primary
+                                            )
+                                        }
+                                        item {
+                                            androidx.compose.runtime.DisposableEffect(Unit) {
+                                                onDispose { isRightPaneFirstAttached = false }
+                                            }
+                                            ExpressiveList(
+                                                modifier = Modifier
+                                                    .focusRequester(rightPaneFirstRequester)
+                                                    .onGloballyPositioned { isRightPaneFirstAttached = true },
+                                                content = listOf {
+                                                    ExpressiveDropdownItem(
+                                                        icon = Icons.Rounded.Speed,
+                                                        title = stringResource(R.string.perf_lite_mode),
+                                                        summary = stringResource(R.string.perf_lite_mode_desc_short),
+                                                        items = booleanModes,
+                                                        selectedIndex = getBoolIndex(displayConfig.perf_lite_mode),
+                                                        onItemSelected = { index ->
+                                                            val value = listOf("default", "true", "false")[index]
+                                                            viewModel.updateSetting(pkg, "perf_lite_mode", value)
+                                                        },
+                                                        modifier = Modifier.zxDropDownAnchor(liteModeMenu),
+                                                        externalMenuState = liteModeMenu,
+                                                        focusKey = "appsettings:perf_lite_mode"
+                                                    )
+                                                }
+                                            )
+                                        }
+
+                                        item {
+                                            Text(
+                                                text = stringResource(R.string.section_additionalsettings).uppercase(),
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    letterSpacing = 1.2.sp
+                                                ),
+                                                color = scheme.primary,
+                                                modifier = Modifier.padding(top = 4.dp)
+                                            )
+                                        }
+                                        item {
+                                            ExpressiveList(
+                                                content = buildList {
+                                                    if (bypassSupported) {
+                                                        add {
+                                                            ExpressiveDropdownItem(
+                                                                icon = Icons.Rounded.Cable,
+                                                                title = stringResource(R.string.bcharging),
+                                                                summary = stringResource(R.string.enable_bypass_charge_desc),
+                                                                items = booleanModes,
+                                                                selectedIndex = getBoolIndex(displayConfig.bypass_charging),
+                                                                onItemSelected = { index ->
+                                                                    val value = listOf("default", "true", "false")[index]
+                                                                    viewModel.updateSetting(pkg, "bypass_charging", value)
+                                                                },
+                                                                modifier = Modifier.zxDropDownAnchor(bypassMenu),
+                                                                externalMenuState = bypassMenu,
+                                                                focusKey = "appsettings:bypass_charging"
+                                                            )
+                                                        }
+                                                    }
+                                                    add {
+                                                        ExpressiveDropdownItem(
+                                                            icon = Icons.Rounded.RocketLaunch,
+                                                            title = stringResource(R.string.game_preload),
+                                                            summary = stringResource(R.string.game_preload_desc),
+                                                            items = booleanModes,
+                                                            selectedIndex = getBoolIndex(displayConfig.game_preload),
+                                                            onItemSelected = { index ->
+                                                                val value = listOf("default", "true", "false")[index]
+                                                                viewModel.updateSetting(pkg, "game_preload", value)
+                                                            },
+                                                            modifier = Modifier.zxDropDownAnchor(preloadMenu),
+                                                            externalMenuState = preloadMenu,
+                                                            focusKey = "appsettings:game_preload"
+                                                        )
+                                                    }
+                                                    if (isFullModeEnabled) {
+                                                        add {
+                                                            ExpressiveDropdownItem(
+                                                                icon = Icons.Rounded.SwapVerticalCircle,
+                                                                title = stringResource(R.string.app_priority),
+                                                                summary = stringResource(R.string.app_priority_desc),
+                                                                items = booleanModes,
+                                                                selectedIndex = getBoolIndex(displayConfig.app_priority),
+                                                                onItemSelected = { index ->
+                                                                    val value = listOf("default", "true", "false")[index]
+                                                                    viewModel.updateSetting(pkg, "app_priority", value)
+                                                                },
+                                                                modifier = Modifier.zxDropDownAnchor(priorityMenu),
+                                                                externalMenuState = priorityMenu,
+                                                                focusKey = "appsettings:app_priority"
+                                                            )
+                                                        }
+                                                    }
+                                                    add {
+                                                        ExpressiveDropdownItem(
+                                                            icon = Icons.Rounded.DoNotDisturbOn,
+                                                            title = stringResource(R.string.dnd_mode),
+                                                            summary = stringResource(R.string.dnd_mode_desc),
+                                                            items = booleanModes,
+                                                            selectedIndex = getBoolIndex(displayConfig.dnd_on_gaming),
+                                                            onItemSelected = { index ->
+                                                                val value = listOf("default", "true", "false")[index]
+                                                                viewModel.updateSetting(pkg, "dnd_on_gaming", value)
+                                                            },
+                                                            modifier = Modifier.zxDropDownAnchor(dndMenu),
+                                                            externalMenuState = dndMenu,
+                                                            focusKey = "appsettings:dnd_on_gaming"
+                                                        )
+                                                    }
+                                                }
+                                            )
+                                        }
+
+                                        item {
+                                            Text(
+                                                text = stringResource(R.string.section_display_render_settings).uppercase(),
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    letterSpacing = 1.2.sp
+                                                ),
+                                                color = scheme.primary,
+                                                modifier = Modifier.padding(top = 4.dp)
+                                            )
+                                        }
+                                        item {
+                                            ExpressiveList(
+                                                content = buildList {
+                                                    if (isFullModeEnabled) {
+                                                        add {
+                                                            ExpressiveDropdownItem(
+                                                                icon = Icons.Rounded.WebStories,
+                                                                title = stringResource(R.string.refreshrates),
+                                                                summary = stringResource(R.string.refreshrates_desc),
+                                                                items = dynamicRefreshDisplayModes,
+                                                                selectedIndex = rawRefreshModes.indexOfFirst {
+                                                                    it.equals(displayConfig.refresh_rate, ignoreCase = true)
+                                                                }.coerceAtLeast(0),
+                                                                onItemSelected = { index ->
+                                                                    val value = rawRefreshModes[index]
+                                                                    viewModel.updateSetting(pkg, "refresh_rate", value)
+                                                                },
+                                                                modifier = Modifier.zxDropDownAnchor(refreshMenu),
+                                                                externalMenuState = refreshMenu,
+                                                                focusKey = "appsettings:refresh_rate"
+                                                            )
+                                                        }
+                                                    }
+                                                    add {
+                                                        ExpressiveDropdownItem(
+                                                            icon = Icons.Rounded.Layers,
+                                                            title = stringResource(R.string.renderengine),
+                                                            summary = stringResource(R.string.renderengine_desc),
+                                                            items = rendererModes,
+                                                            selectedIndex = rendererValues.indexOfFirst {
+                                                                it.equals(displayConfig.renderer, ignoreCase = true)
+                                                            }.coerceAtLeast(0),
+                                                            onItemSelected = { index ->
+                                                                val value = rendererValues[index]
+                                                                viewModel.updateSetting(pkg, "renderer", value)
+                                                            },
+                                                            modifier = Modifier.zxDropDownAnchor(rendererMenu),
+                                                            externalMenuState = rendererMenu,
+                                                            focusKey = "appsettings:renderer"
+                                                        )
+                                                    }
+                                                }
+                                            )
+                                        }
+
+                                        if (isGameApp) {
+                                            item {
+                                                Text(
+                                                    text = stringResource(R.string.section_resolution_settings).uppercase(),
+                                                    style = MaterialTheme.typography.labelSmall.copy(
+                                                        fontWeight = FontWeight.Bold,
+                                                        letterSpacing = 1.2.sp
+                                                    ),
+                                                    color = scheme.primary,
+                                                    modifier = Modifier.padding(top = 4.dp)
+                                                )
+                                            }
+                                            item {
+                                                ExpressiveList(
+                                                    content = buildList {
+                                                        add {
+                                                            val currentDownscaleIndex = rawDownscaleSteps
+                                                                .indexOf(displayConfig.resolution_downscale)
+                                                                .coerceAtLeast(0)
+                                                            var downscaleSliderPos by remember(displayConfig.resolution_downscale) {
+                                                                mutableFloatStateOf(currentDownscaleIndex.toFloat())
+                                                            }
+                                                            ExpressiveSliderItem(
+                                                                icon = Icons.Rounded.AspectRatio,
+                                                                title = stringResource(R.string.resolution_downscale_title),
+                                                                subtitle = stringResource(R.string.resolution_downscale_desc),
+                                                                badgeText = downscaleDisplaySteps.getOrElse(downscaleSliderPos.toInt()) { defaultLabel },
+                                                                sliderPosition = downscaleSliderPos,
+                                                                valueRange = 0f..(rawDownscaleSteps.size - 1).toFloat(),
+                                                                steps = rawDownscaleSteps.size - 2,
+                                                                onValueChange = { downscaleSliderPos = it },
+                                                                onValueChangeFinished = {
+                                                                    val value = rawDownscaleSteps[downscaleSliderPos.toInt()]
+                                                                    viewModel.updateSetting(pkg, "resolution_downscale", value)
+                                                                }
+                                                            )
+                                                        }
+                                                        add {
+                                                            val currentFpsIndex = rawFpsSteps
+                                                                .indexOf(displayConfig.resolution_fps)
+                                                                .coerceAtLeast(0)
+                                                            var fpsSliderPos by remember(displayConfig.resolution_fps) {
+                                                                mutableFloatStateOf(currentFpsIndex.toFloat())
+                                                            }
+                                                            val downscaleIsOff = displayConfig.resolution_downscale == "default"
+                                                            ExpressiveSliderItem(
+                                                                icon = Icons.Rounded.Speed,
+                                                                title = stringResource(R.string.resolution_fps_target_title),
+                                                                subtitle = stringResource(R.string.resolution_fps_target_desc),
+                                                                badgeText = "${fpsDisplaySteps.getOrElse(fpsSliderPos.toInt()) { "60" }}fps",
+                                                                sliderPosition = fpsSliderPos,
+                                                                valueRange = 0f..(rawFpsSteps.size - 1).toFloat(),
+                                                                steps = rawFpsSteps.size - 2,
+                                                                enabled = !downscaleIsOff,
+                                                                onValueChange = { fpsSliderPos = it },
+                                                                onValueChangeFinished = {
+                                                                    val value = rawFpsSteps[fpsSliderPos.toInt()]
+                                                                    viewModel.updateSetting(pkg, "resolution_fps", value)
+                                                                }
+                                                            )
+                                                        }
+                                                    }
+                                                )
+                                            }
+                                        }
+                                        if (isFullModeEnabled) {
+                                            item {
+                                                ExpressiveList(
+                                                    content = listOf {
+                                                        ExpressiveInfoCard(
+                                                            supportingContent = {
+                                                                Text(
+                                                                    text = stringResource(R.string.str_by_using_per_app_refresh_rate)
+                                                                )
+                                                            },
+                                                            leadingContent = {
+                                                                LeadingIcon(icon = Icons.Rounded.Info)
+                                                            },
+                                                            containerColor = scheme.surfaceContainerLow,
+                                                            onClick = {}
+                                                        )
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                // Hoisted out of the LazyColumn: an in-window overlay inside a
+                                // lazy item is clipped to the list viewport.
+                                @Composable
+                                fun boolMenu(
+                                    state: ZXDropDownState,
+                                    key: String,
+                                    current: String?
+                                ) = ZXDropDownMenu(
+                                    state = state,
+                                    options = booleanModes,
+                                    selectedOption = booleanModes.getOrNull(getBoolIndex(current)),
+                                    onOptionSelected = { label ->
+                                        val index = booleanModes.indexOf(label)
+                                        if (index >= 0) viewModel.updateSetting(pkg, key, boolValues[index])
+                                    },
+                                    minWidth = 260.dp
+                                )
+
+                                boolMenu(liteModeMenu, "perf_lite_mode", displayConfig.perf_lite_mode)
+                                if (bypassSupported) {
+                                    boolMenu(bypassMenu, "bypass_charging", displayConfig.bypass_charging)
+                                }
+                                boolMenu(preloadMenu, "game_preload", displayConfig.game_preload)
+                                if (isFullModeEnabled) {
+                                    boolMenu(priorityMenu, "app_priority", displayConfig.app_priority)
+                                }
+                                boolMenu(dndMenu, "dnd_on_gaming", displayConfig.dnd_on_gaming)
+
+                                if (isFullModeEnabled) {
+                                    ZXDropDownMenu(
+                                        state = refreshMenu,
+                                        options = dynamicRefreshDisplayModes,
+                                        selectedOption = dynamicRefreshDisplayModes.getOrNull(
+                                            rawRefreshModes.indexOfFirst {
+                                                it.equals(displayConfig.refresh_rate, ignoreCase = true)
+                                            }.coerceAtLeast(0)
+                                        ),
+                                        onOptionSelected = { label ->
+                                            val index = dynamicRefreshDisplayModes.indexOf(label)
+                                            if (index >= 0) {
+                                                viewModel.updateSetting(pkg, "refresh_rate", rawRefreshModes[index])
+                                            }
+                                        },
+                                        minWidth = 260.dp
+                                    )
+                                }
+
+                                ZXDropDownMenu(
+                                    state = rendererMenu,
+                                    options = rendererModes,
+                                    selectedOption = rendererModes.getOrNull(
+                                        rendererValues.indexOfFirst {
+                                            it.equals(displayConfig.renderer, ignoreCase = true)
+                                        }.coerceAtLeast(0)
+                                    ),
+                                    onOptionSelected = { label ->
+                                        val index = rendererModes.indexOf(label)
+                                        if (index >= 0) viewModel.updateSetting(pkg, "renderer", rendererValues[index])
+                                    },
+                                    minWidth = 280.dp,
+                                    maxWidth = 420.dp
+                                )
+                                }
+
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    }
+}
+
+/**
+ * Game Space Wallpaper Personalization Sheet: slides up from below with Material 3 bouncy expressive
+ * physics over a Haze-blurred backdrop, styled natively in the two-pane Game Space layout matching
+ * [ZXGameSpaceAppSettingsOverlay].
+ */
+@Composable
+internal fun ZXGameSpaceWallpaperOverlay(
+    visible: Boolean,
+    packageName: String?,
+    allApps: List<ApplistViewmodel.AppInfo>,
+    hazeState: HazeState,
+    onLaunch: (ApplistViewmodel.AppInfo) -> Unit,
+    onClose: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val scheme = MaterialTheme.colorScheme
+    val motion = MaterialTheme.motionScheme
+    val focusManager = LocalFocusManager.current
+
+    val wpFirstRequester = remember { FocusRequester() }
+    val wpSecondRequester = remember { FocusRequester() }
+    val wpThirdRequester = remember { FocusRequester() }
+    val wpRightPaneRequester = remember { FocusRequester() }
+    val wpRightPaneFirstRequester = remember { FocusRequester() }
+    var isWpRightPaneFirstAttached by remember { mutableStateOf(false) }
+    var lastWpLeftRequester by remember { mutableStateOf<FocusRequester?>(null) }
+    var wpRightPaneHasFocus by remember { mutableStateOf(false) }
+
+    LaunchedEffect(visible) {
+        if (visible && (GameSpaceInputSource.isGamepadLast || GamepadInput.dpadMode || GamepadInput.controllerConnected)) {
+            GamepadInput.onDpadKey()
+        }
+    }
+
+    var activePkg by remember { mutableStateOf(packageName) }
+    if (packageName != null) {
+        activePkg = packageName
+    }
+
+    GameSpacePopupContainer(
+        visible = visible,
+        name = "WallpaperSettings",
+        modifier = Modifier.fillMaxSize(),
+        firstFocusRequester = wpFirstRequester
+    ) {
+    // Edge-to-edge stationary scrim: smoothly dims and blurs underlying UI and prevents tap-through
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(animationSpec = motion.defaultEffectsSpec()),
+        exit = fadeOut(animationSpec = motion.defaultEffectsSpec()),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .hazeBlur(
+                    input = HazeInput.Sources(hazeState),
+                    style = HazeBlurStyle.Material3(
+                        containerColor = scheme.surfaceContainerLowest.copy(alpha = 0.55f)
+                    ) {
+                        blurRadius(28.dp)
+                    }
+                )
+                .background(scheme.scrim.copy(alpha = 0.40f))
+                .focusProperties { canFocus = false }
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClose
+                )
+        )
+    }
+
+    AnimatedVisibility(
+        visible = visible,
+        enter = slideInVertically(
+            initialOffsetY = { fullHeight -> fullHeight },
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioLowBouncy,
+                stiffness = Spring.StiffnessMediumLow
+            )
+        ) + fadeIn(animationSpec = motion.defaultEffectsSpec()),
+        exit = slideOutVertically(
+            targetOffsetY = { fullHeight -> fullHeight },
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMedium
+            )
+        ) + fadeOut(animationSpec = motion.defaultEffectsSpec()),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        val pkg = activePkg ?: return@AnimatedVisibility
+        val isHome = pkg == "home"
+        val resolvedApp = remember(pkg, allApps) {
+            if (isHome) null else allApps.find { it.packageName == pkg }
+        }
+        val appDetails = remember(pkg) {
+            if (isHome) Triple("Home Wallpaper", "AZenith Game Space", "") else getAppDetails(context, pkg)
+        }
+        var selectedMode by remember(pkg) {
+            mutableStateOf(if (isHome) "custom" else context.getGameWallpaperMode(pkg))
+        }
+        var customUri by remember(pkg) {
+            mutableStateOf(if (isHome) context.getHeaderImage() else context.getGameWallpaperUri(pkg))
+        }
+        val homeWallpaperUri = remember(pkg) { context.getHeaderImage() }
+
+        var isWallpaperEnabled by remember(pkg) {
+            mutableStateOf(if (isHome) context.isHomeWallpaperEnabled() else context.isGameWallpaperEnabled(pkg))
+        }
+        var wallpaperDim by remember(pkg) {
+            mutableIntStateOf(
+                if (isHome) {
+                    context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+                        .getInt("gamespace_wallpaper_dimming_intensity", 75)
+                } else {
+                    context.getGameWallpaperDim(pkg)
+                }
+            )
+        }
+        var wallpaperBlur by remember(pkg) {
+            mutableIntStateOf(if (isHome) context.getHomeWallpaperBlur() else context.getGameWallpaperBlur(pkg))
+        }
+
+        val prefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
+        val systemDim = remember {
+            prefs.getInt("gamespace_wallpaper_dimming_intensity", 75)
+        }
+
+        val imagePicker = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.PickVisualMedia()
+        ) { uri: Uri? ->
+            uri?.let { sourceUri ->
+                scope.launch(Dispatchers.IO) {
+                    val mimeType = context.contentResolver.getType(sourceUri) ?: ""
+                    val isVideo = mimeType.startsWith("video/")
+                    val extension = when {
+                        isVideo -> "mp4"
+                        mimeType == "image/gif" -> "gif"
+                        mimeType == "image/png" -> "png"
+                        mimeType == "image/webp" -> "webp"
+                        else -> "jpg"
+                    }
+                    val savedUri = context.saveMediaDirectly(sourceUri, extension)
+                    if (savedUri != null) {
+                        if (isHome) {
+                            context.saveHeaderImage(savedUri)
+                            context.setHomeWallpaperEnabled(true)
+                        } else {
+                            context.setGameWallpaperUri(pkg, savedUri)
+                            context.setGameWallpaperMode(pkg, "custom")
+                            context.setGameWallpaperEnabled(pkg, true)
+                        }
+                        withContext(Dispatchers.Main) {
+                            customUri = savedUri
+                            selectedMode = "custom"
+                            isWallpaperEnabled = true
+                        }
+                    }
+                }
+            }
+        }
+
+        val insets = WindowInsets.displayCutout.asPaddingValues()
+        val layoutDirection = LocalLayoutDirection.current
+        val startPad = maxOf(24.dp, insets.calculateStartPadding(layoutDirection))
+        val endPad = maxOf(24.dp, insets.calculateEndPadding(layoutDirection))
+        val topPad = maxOf(18.dp, insets.calculateTopPadding())
+        val bottomPad = 14.dp
+
+        val isOverrideActive = selectedMode != "default"
+        val modeBadgeText = when (selectedMode) {
+            "custom" -> "Custom Media"
+            "follow_home" -> "Home Sync"
+            else -> "Default Art"
+        }
+
+        val doWpLaunch = {
+            if (!isHome) {
+                android.util.Log.d("PAD", "gs wallpaper launch pkg=$pkg")
+                if (resolvedApp != null) {
+                    onLaunch(resolvedApp)
+                } else {
+                    launchGame(context, pkg)
+                }
+            }
+        }
+        val openWpInfo = {
+            if (!isHome) {
+                android.util.Log.d("PAD", "gs wallpaper info pkg=$pkg")
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.parse("package:$pkg")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                runCatching { context.startActivity(intent) }
+            }
+            Unit
+        }
+
+        CompositionLocalProvider(
+            LocalContentColor provides scheme.onSurface
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(start = startPad, end = endPad, top = topPad, bottom = bottomPad)
+                    .onPreviewKeyEvent { event ->
+                        if (!isHome &&
+                            event.type == KeyEventType.KeyDown &&
+                            event.nativeKeyEvent.repeatCount == 0
+                        ) {
+                            when (event.nativeKeyEvent.keyCode) {
+                                android.view.KeyEvent.KEYCODE_BUTTON_START -> {
+                                    doWpLaunch()
+                                    true
+                                }
+                                android.view.KeyEvent.KEYCODE_BUTTON_SELECT -> {
+                                    openWpInfo()
+                                    true
+                                }
+                                else -> false
+                            }
+                        } else {
+                            false
+                        }
+                    }
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Left GameSpace Identity Sidebar
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = scheme.surfaceContainerLow.copy(alpha = 0.90f),
+                        contentColor = scheme.onSurface,
+                        modifier = Modifier
+                            .width(272.dp)
+                            .fillMaxHeight()
+                            .focusGroup()
+                            .onPreviewKeyEvent { event ->
+                                if (event.type == KeyEventType.KeyDown &&
+                                    event.nativeKeyEvent.repeatCount == 0 &&
+                                    event.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT
+                                ) {
+                                    val dropdownActive = zx.azenith.ui.component.ZXDropDownNav.isActive
+                                    val sliderFocused = GamepadFocusNav.focusedSlider
+                                    if (dropdownActive || sliderFocused) {
+                                        android.util.Log.d(
+                                            "PAD",
+                                            "gs wallpaper DPAD_RIGHT ignored dropdown=$dropdownActive " +
+                                                "slider=$sliderFocused attached=$isWpRightPaneFirstAttached return=false"
+                                        )
+                                        false
+                                    } else if (isWpRightPaneFirstAttached) {
+                                        val reqOk = wpRightPaneFirstRequester.requestFocus()
+                                        val moveOk = if (!reqOk) {
+                                            focusManager.moveFocus(FocusDirection.Right)
+                                        } else {
+                                            false
+                                        }
+                                        val moved = reqOk || moveOk
+                                        android.util.Log.d(
+                                            "PAD",
+                                            "gs wallpaper DPAD_RIGHT dropdown=$dropdownActive slider=$sliderFocused " +
+                                                "attached=true reqOk=$reqOk fallbackRight=$moveOk return=$moved"
+                                        )
+                                        moved
+                                    } else {
+                                        android.util.Log.d(
+                                            "PAD",
+                                            "gs wallpaper DPAD_RIGHT dropdown=$dropdownActive slider=$sliderFocused " +
+                                                "attached=false scheduling bounded retry"
+                                        )
+                                        scope.launch {
+                                            var moved = false
+                                            for (attempt in 1..12) {
+                                                androidx.compose.runtime.withFrameNanos { }
+                                                if (isWpRightPaneFirstAttached) {
+                                                    val reqOk = wpRightPaneFirstRequester.requestFocus()
+                                                    val moveOk = if (!reqOk) {
+                                                        focusManager.moveFocus(FocusDirection.Right)
+                                                    } else {
+                                                        false
+                                                    }
+                                                    moved = reqOk || moveOk
+                                                    android.util.Log.d(
+                                                        "PAD",
+                                                        "gs wallpaper DPAD_RIGHT retry attempt=$attempt reqOk=$reqOk fallbackRight=$moveOk moved=$moved"
+                                                    )
+                                                    if (moved) break
+                                                }
+                                            }
+                                            if (!moved) {
+                                                val fallback = focusManager.moveFocus(FocusDirection.Right)
+                                                android.util.Log.d("PAD", "gs wallpaper DPAD_RIGHT retry exhausted fallbackRight=$fallback")
+                                            }
+                                        }
+                                        true
+                                    }
+                                } else {
+                                    false
+                                }
+                            }
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f, fill = false)
+                                    .verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        TopBarIconButton(
+                                            icon = Icons.Rounded.KeyboardArrowDown,
+                                            contentDescription = stringResource(R.string.cd_back),
+                                            onClick = onClose,
+                                            gamepadFocusable = false
+                                        )
+                                        Text(
+                                            text = if (isHome) "Home Wallpaper" else "Game Wallpaper",
+                                            style = MaterialTheme.typography.titleMedium.copy(
+                                                fontWeight = FontWeight.ExtraBold
+                                            ),
+                                            color = scheme.onSurface
+                                        )
+                                    }
+                                }
+
+                                // App / Home Identity card
+                                Surface(
+                                    shape = RoundedCornerShape(18.dp),
+                                    color = scheme.surfaceContainerHigh,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            if (isHome) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(14.dp),
+                                                    color = scheme.primaryContainer,
+                                                    modifier = Modifier.size(48.dp)
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Icon(
+                                                            imageVector = Icons.Rounded.Wallpaper,
+                                                            contentDescription = null,
+                                                            tint = scheme.onPrimaryContainer,
+                                                            modifier = Modifier.size(26.dp)
+                                                        )
+                                                    }
+                                                }
+                                            } else if (resolvedApp != null) {
+                                                AppIconImage(app = resolvedApp, size = 48.dp)
+                                            } else {
+                                                Surface(
+                                                    shape = RoundedCornerShape(14.dp),
+                                                    color = scheme.primaryContainer,
+                                                    modifier = Modifier.size(48.dp)
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Icon(
+                                                            imageVector = Icons.Rounded.Android,
+                                                            contentDescription = null,
+                                                            tint = scheme.onPrimaryContainer
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = if (isHome) "Home Stage" else (resolvedApp?.label ?: appDetails.first),
+                                                    style = MaterialTheme.typography.titleSmall.copy(
+                                                        fontWeight = FontWeight.Bold
+                                                    ),
+                                                    color = scheme.onSurface,
+                                                    maxLines = 2,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    text = if (isHome) "AZenith Game Space" else pkg,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = scheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            if (!isHome && appDetails.third.isNotEmpty()) {
+                                                Surface(
+                                                    shape = CircleShape,
+                                                    color = scheme.secondaryContainer,
+                                                    contentColor = scheme.onSecondaryContainer
+                                                ) {
+                                                    Text(
+                                                        text = "v${appDetails.third}",
+                                                        style = MaterialTheme.typography.labelSmall.copy(
+                                                            fontWeight = FontWeight.Bold
+                                                        ),
+                                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                                                    )
+                                                }
+                                            }
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (isHome || isOverrideActive) scheme.primaryContainer else scheme.surfaceContainerHighest,
+                                                contentColor = if (isHome || isOverrideActive) scheme.onPrimaryContainer else scheme.onSurfaceVariant
+                                            ) {
+                                                Text(
+                                                    text = if (isHome) "Global" else modeBadgeText,
+                                                    style = MaterialTheme.typography.labelSmall.copy(
+                                                        fontWeight = FontWeight.Bold
+                                                    ),
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (!isHome) {
+                                    // Custom Stage Switch Card
+                                    val masterShape = RoundedCornerShape(18.dp)
+                                    val toggleCustomStage = {
+                                        val nextMode = if (isOverrideActive) {
+                                            "default"
+                                        } else if (customUri != null) {
+                                            "custom"
+                                        } else {
+                                            "follow_home"
+                                        }
+                                        selectedMode = nextMode
+                                        context.setGameWallpaperMode(pkg, nextMode)
+                                        if (nextMode != "default" && !isWallpaperEnabled) {
+                                            isWallpaperEnabled = true
+                                            context.setGameWallpaperEnabled(pkg, true)
+                                        }
+                                    }
+                                    Surface(
+                                        shape = masterShape,
+                                        color = if (isOverrideActive) scheme.primaryContainer else scheme.surfaceContainerHigh,
+                                        contentColor = if (isOverrideActive) scheme.onPrimaryContainer else scheme.onSurface,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .focusRequester(wpFirstRequester)
+                                            .onFocusChanged {
+                                                if (it.isFocused) {
+                                                    lastWpLeftRequester = wpFirstRequester
+                                                    android.util.Log.d("PAD", "gs wallpaper focusHolder=customStageSwitch dpadMode=${GamepadInput.dpadMode}")
+                                                }
+                                            }
+                                            .gamepadFocusOutline(
+                                                shape = masterShape,
+                                                register = true,
+                                                onActivate = toggleCustomStage
+                                            )
+                                            .clip(masterShape)
+                                            .focusProperties { canFocus = false }
+                                            .clickable(onClick = toggleCustomStage)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Palette,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = "Custom Stage",
+                                                    style = MaterialTheme.typography.labelLarge.copy(
+                                                        fontWeight = FontWeight.Bold
+                                                    ),
+                                                    maxLines = 1
+                                                )
+                                                Text(
+                                                    text = when {
+                                                        !isOverrideActive -> "Default game icon art"
+                                                        customUri != null -> "Custom artwork active"
+                                                        else -> "Synced with Home tab"
+                                                    },
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = if (isOverrideActive) {
+                                                        scheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                                    } else {
+                                                        scheme.onSurfaceVariant
+                                                    },
+                                                    maxLines = 1
+                                                )
+                                            }
+                                            GameSpaceSwitch(
+                                                checked = isOverrideActive,
+                                                onCheckedChange = null
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Show Wallpaper Switch Card (Supports pure pitch black / Monet surface when disabled)
+                                val wallpaperToggleShape = RoundedCornerShape(18.dp)
+                                val toggleShowWallpaper = {
+                                    val next = !isWallpaperEnabled
+                                    isWallpaperEnabled = next
+                                    if (isHome) {
+                                        context.setHomeWallpaperEnabled(next)
+                                    } else {
+                                        context.setGameWallpaperEnabled(pkg, next)
+                                        if (!next && isOverrideActive) {
+                                            selectedMode = "default"
+                                            context.setGameWallpaperMode(pkg, "default")
+                                        }
+                                    }
+                                }
+                                val showWpRequester = if (isHome) wpFirstRequester else wpSecondRequester
+                                Surface(
+                                    shape = wallpaperToggleShape,
+                                    color = if (isWallpaperEnabled) scheme.surfaceContainerHigh else scheme.surfaceContainerHighest.copy(alpha = 0.6f),
+                                    contentColor = scheme.onSurface,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .focusRequester(showWpRequester)
+                                        .onFocusChanged {
+                                            if (it.isFocused) {
+                                                lastWpLeftRequester = showWpRequester
+                                                android.util.Log.d("PAD", "gs wallpaper focusHolder=showWallpaperSwitch dpadMode=${GamepadInput.dpadMode}")
+                                            }
+                                        }
+                                        .gamepadFocusOutline(
+                                            shape = wallpaperToggleShape,
+                                            register = true,
+                                            onActivate = toggleShowWallpaper
+                                        )
+                                        .clip(wallpaperToggleShape)
+                                        .focusProperties { canFocus = false }
+                                        .clickable(onClick = toggleShowWallpaper)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Wallpaper,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp),
+                                            tint = if (isWallpaperEnabled) scheme.primary else scheme.onSurfaceVariant
+                                        )
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "Show Wallpaper",
+                                                style = MaterialTheme.typography.labelMedium.copy(
+                                                    fontWeight = FontWeight.Bold
+                                                ),
+                                                maxLines = 1
+                                            )
+                                        }
+                                        GameSpaceSwitch(
+                                            checked = isWallpaperEnabled,
+                                            onCheckedChange = null
+                                        )
+                                    }
+                                }
+
+                                if (isHome) {
+                                    val shapesToggleShape = RoundedCornerShape(18.dp)
+                                    var floatingShapesEnabled by remember {
+                                        mutableStateOf(prefs.getBoolean("gamespace_floating_shapes_enabled", true))
+                                    }
+                                    val toggleFloatingShapes = {
+                                        val next = !floatingShapesEnabled
+                                        floatingShapesEnabled = next
+                                        prefs.edit().putBoolean("gamespace_floating_shapes_enabled", next).apply()
+                                    }
+                                    Surface(
+                                        shape = shapesToggleShape,
+                                        color = if (floatingShapesEnabled) scheme.surfaceContainerHigh else scheme.surfaceContainerHighest.copy(alpha = 0.6f),
+                                        contentColor = scheme.onSurface,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .focusRequester(wpThirdRequester)
+                                            .onFocusChanged {
+                                                if (it.isFocused) {
+                                                    lastWpLeftRequester = wpThirdRequester
+                                                    android.util.Log.d("PAD", "gs wallpaper focusHolder=floatingShapesSwitch dpadMode=${GamepadInput.dpadMode}")
+                                                }
+                                            }
+                                            .gamepadFocusOutline(
+                                                shape = shapesToggleShape,
+                                                register = true,
+                                                onActivate = toggleFloatingShapes
+                                            )
+                                            .clip(shapesToggleShape)
+                                            .focusProperties { canFocus = false }
+                                            .clickable(onClick = toggleFloatingShapes)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.AutoAwesome,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(20.dp),
+                                                tint = if (floatingShapesEnabled) scheme.primary else scheme.onSurfaceVariant
+                                            )
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = "Show Floating Shapes",
+                                                    style = MaterialTheme.typography.labelMedium.copy(
+                                                        fontWeight = FontWeight.Bold
+                                                    ),
+                                                    maxLines = 1
+                                                )
+                                                Text(
+                                                    text = "Material 3 shapes hovering & morphing on homescreen",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = scheme.onSurfaceVariant,
+                                                    maxLines = 1
+                                                )
+                                            }
+                                            GameSpaceSwitch(
+                                                checked = floatingShapesEnabled,
+                                                onCheckedChange = null
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Bottom Quick Actions: Launch & System Info (only for apps; touch + START/SELECT only, not gamepad-focusable)
+                            if (!isHome) {
+                                val showPadGlyphs = zx.azenith.ui.component.GamepadInput.controllerConnected ||
+                                    zx.azenith.ui.component.GamepadInput.dpadMode
+                                Spacer(Modifier.height(10.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    val launchShape = RoundedCornerShape(14.dp)
+                                    Surface(
+                                        shape = launchShape,
+                                        color = scheme.primary,
+                                        contentColor = scheme.onPrimary,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(42.dp)
+                                            .clip(launchShape)
+                                            .focusProperties { canFocus = false }
+                                            .clickable(onClick = doWpLaunch)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.PlayArrow,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(Modifier.width(6.dp))
+                                            Text(
+                                                text = stringResource(R.string.gamespace_play_game),
+                                                style = MaterialTheme.typography.labelLarge.copy(
+                                                    fontWeight = FontWeight.Bold
+                                                ),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            if (showPadGlyphs) {
+                                                Spacer(Modifier.width(6.dp))
+                                                Icon(
+                                                    painter = painterResource(R.drawable.ic_gp_start),
+                                                    contentDescription = null,
+                                                    tint = scheme.onPrimary.copy(alpha = 0.90f),
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    val infoShape = RoundedCornerShape(14.dp)
+                                    zx.azenith.ui.component.GamepadSelectBadge(size = 16.dp) {
+                                        Surface(
+                                            shape = infoShape,
+                                            color = scheme.secondaryContainer,
+                                            contentColor = scheme.onSecondaryContainer,
+                                            modifier = Modifier
+                                                .size(42.dp)
+                                                .clip(infoShape)
+                                                .focusProperties { canFocus = false }
+                                                .clickable(onClick = openWpInfo)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Info,
+                                                    contentDescription = stringResource(R.string.str_app_info),
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Right GameSpace Wallpaper Stage
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = scheme.surfaceContainerLow.copy(alpha = 0.85f),
+                        contentColor = scheme.onSurface,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .focusRequester(wpRightPaneRequester)
+                            .onFocusChanged { wpRightPaneHasFocus = it.hasFocus }
+                            .focusGroup()
+                            .onPreviewKeyEvent { event ->
+                                if (event.type == KeyEventType.KeyDown &&
+                                    event.nativeKeyEvent.repeatCount == 0 &&
+                                    event.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT &&
+                                    !GamepadFocusNav.focusedSlider
+                                ) {
+                                    val target = lastWpLeftRequester ?: wpFirstRequester
+                                    val moved = target.requestFocus()
+                                    android.util.Log.d("PAD", "gs wallpaper DPAD_LEFT toLeftPanel moved=$moved")
+                                    moved
+                                } else {
+                                    false
+                                }
+                            }
+                    ) {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            item {
+                                Text(
+                                    text = "MEDIA ARTWORK",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.2.sp
+                                    ),
+                                    color = scheme.primary
+                                )
+                            }
+
+                            item {
+                                ExpressiveList(
+                                    content = listOf {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp),
+                                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                            ) {
+                                                LeadingIcon(
+                                                    icon = Icons.Rounded.AddPhotoAlternate,
+                                                    contentDescription = null
+                                                )
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = if (isHome) "Home Stage Artwork" else "Stage Media Artwork",
+                                                        style = MaterialTheme.typography.titleMedium.copy(
+                                                            fontWeight = FontWeight.Bold
+                                                        ),
+                                                        color = scheme.onSurface
+                                                    )
+                                                    Text(
+                                                        text = when {
+                                                            !isWallpaperEnabled -> "Wallpaper is turned off (clean background)"
+                                                            isHome -> if (customUri != null) "Custom wallpaper configured for Home Stage" else "Default atmospheric wallpaper active"
+                                                            !isOverrideActive -> "Default game dynamic icon artwork"
+                                                            customUri != null -> "Custom wallpaper active for this game"
+                                                            else -> "Synchronized with Home Stage wallpaper"
+                                                        },
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = scheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                // Visual Preview Box (118.dp height)
+                                                Surface(
+                                                    shape = RoundedCornerShape(16.dp),
+                                                    color = scheme.surfaceContainerLowest,
+                                                    modifier = Modifier
+                                                        .weight(0.48f)
+                                                        .height(118.dp)
+                                                        .clip(RoundedCornerShape(16.dp))
+                                                ) {
+                                                    Box(modifier = Modifier.fillMaxSize()) {
+                                                        if (!isWallpaperEnabled) {
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .fillMaxSize()
+                                                                    .background(scheme.surfaceContainerLowest),
+                                                                contentAlignment = Alignment.Center
+                                                            ) {
+                                                                Text(
+                                                                    text = "No Wallpaper",
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    color = scheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                                                )
+                                                            }
+                                                        } else {
+                                                            val effectivePreviewUri = when {
+                                                                isHome -> customUri
+                                                                selectedMode == "custom" && customUri != null -> customUri
+                                                                selectedMode == "follow_home" -> homeWallpaperUri
+                                                                else -> null
+                                                            }
+                                                            if (effectivePreviewUri != null) {
+                                                                MediaBannerRenderer(
+                                                                    uriString = effectivePreviewUri,
+                                                                    modifier = Modifier
+                                                                        .fillMaxSize()
+                                                                        .then(if (wallpaperBlur > 0) Modifier.blur(wallpaperBlur.dp, BlurredEdgeTreatment.Unbounded) else Modifier)
+                                                                )
+                                                            } else if (isHome || selectedMode == "follow_home") {
+                                                                Image(
+                                                                    painter = painterResource(R.drawable.banner_bg),
+                                                                    contentDescription = null,
+                                                                    contentScale = ContentScale.Crop,
+                                                                    modifier = Modifier
+                                                                        .fillMaxSize()
+                                                                        .then(if (wallpaperBlur > 0) Modifier.blur(wallpaperBlur.dp, BlurredEdgeTreatment.Unbounded) else Modifier)
+                                                                )
+                                                            } else {
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .fillMaxSize()
+                                                                        .background(
+                                                                            Brush.radialGradient(
+                                                                                colors = listOf(
+                                                                                    scheme.primaryContainer.copy(alpha = 0.45f),
+                                                                                    scheme.surfaceContainerLowest
+                                                                                )
+                                                                            )
+                                                                        ),
+                                                                    contentAlignment = Alignment.Center
+                                                                ) {
+                                                                    if (resolvedApp != null) {
+                                                                        Box(
+                                                                            modifier = Modifier
+                                                                                .size(54.dp)
+                                                                                .then(if (wallpaperBlur > 0) Modifier.blur(wallpaperBlur.dp, BlurredEdgeTreatment.Unbounded) else Modifier),
+                                                                            contentAlignment = Alignment.Center
+                                                                        ) {
+                                                                            AppIconImage(
+                                                                                app = resolvedApp,
+                                                                                size = 54.dp
+                                                                            )
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            val isAmoled = prefs.getInt("color_mode", ColorMode.SYSTEM.value) == ColorMode.DARKAMOLED.value
+                                                            val previewBaseDim = if (isAmoled) Color.Black else scheme.surfaceContainerLowest
+                                                            val effectiveDim = if (isHome) wallpaperDim else if (wallpaperDim >= 0) wallpaperDim else systemDim
+                                                            val previewDimScale = (effectiveDim / 75f).coerceIn(0.15f, 1.45f)
+
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .fillMaxSize()
+                                                                    .background(
+                                                                        Brush.horizontalGradient(
+                                                                            colorStops = arrayOf(
+                                                                                0.00f to previewBaseDim.copy(alpha = (0.80f * previewDimScale).coerceIn(0f, 0.98f)),
+                                                                                0.45f to previewBaseDim.copy(alpha = (0.55f * previewDimScale).coerceIn(0f, 0.98f)),
+                                                                                1.00f to previewBaseDim.copy(alpha = (0.20f * previewDimScale).coerceIn(0f, 0.98f))
+                                                                            )
+                                                                        )
+                                                                    )
+                                                            )
+                                                        }
+                                                    }
+                                                }
+
+                                                // Symmetrical Action Buttons Column
+                                                Column(
+                                                    modifier = Modifier
+                                                        .weight(0.52f)
+                                                        .height(118.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    val chooseShape = RoundedCornerShape(16.dp)
+                                                    val pickWallpaper = {
+                                                        imagePicker.launch(
+                                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                                                        )
+                                                    }
+                                                    androidx.compose.runtime.DisposableEffect(Unit) {
+                                                        onDispose { isWpRightPaneFirstAttached = false }
+                                                    }
+                                                    Surface(
+                                                        shape = chooseShape,
+                                                        color = scheme.primary,
+                                                        contentColor = scheme.onPrimary,
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .weight(1f)
+                                                            .onGloballyPositioned { isWpRightPaneFirstAttached = true }
+                                                            .focusRequester(wpRightPaneFirstRequester)
+                                                            .gamepadFocusOutline(
+                                                                shape = chooseShape,
+                                                                register = true,
+                                                                onActivate = pickWallpaper
+                                                            )
+                                                            .clip(chooseShape)
+                                                            .focusProperties { canFocus = false }
+                                                            .clickable(onClick = pickWallpaper)
+                                                    ) {
+                                                        Row(
+                                                            modifier = Modifier
+                                                                .fillMaxSize()
+                                                                .padding(horizontal = 14.dp),
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.Center
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Rounded.Image,
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(20.dp)
+                                                            )
+                                                            Spacer(Modifier.width(8.dp))
+                                                            Text(
+                                                                text = if (customUri != null) "Change Wallpaper" else "Choose Wallpaper",
+                                                                style = MaterialTheme.typography.labelLarge.copy(
+                                                                    fontWeight = FontWeight.Bold
+                                                                ),
+                                                                maxLines = 1
+                                                            )
+                                                        }
+                                                    }
+
+                                                    AnimatedVisibility(
+                                                        visible = customUri != null,
+                                                        enter = fadeIn(motion.defaultEffectsSpec()) + expandVertically(motion.defaultSpatialSpec()),
+                                                        exit = fadeOut(motion.defaultEffectsSpec()) + shrinkVertically(motion.defaultSpatialSpec())
+                                                    ) {
+                                                        val resetShape = RoundedCornerShape(16.dp)
+                                                        val resetWallpaper = {
+                                                            if (isHome) {
+                                                                context.clearHeaderImage()
+                                                                customUri = null
+                                                            } else {
+                                                                context.setGameWallpaperUri(pkg, null)
+                                                                customUri = null
+                                                                selectedMode = "default"
+                                                                context.setGameWallpaperMode(pkg, "default")
+                                                            }
+                                                        }
+                                                        Surface(
+                                                            shape = resetShape,
+                                                            color = scheme.surfaceContainerHighest,
+                                                            contentColor = scheme.error,
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .height(48.dp)
+                                                                .gamepadFocusOutline(
+                                                                    shape = resetShape,
+                                                                    register = true,
+                                                                    onActivate = resetWallpaper
+                                                                )
+                                                                .clip(resetShape)
+                                                                .focusProperties { canFocus = false }
+                                                                .clickable(onClick = resetWallpaper)
+                                                        ) {
+                                                            Row(
+                                                                modifier = Modifier
+                                                                    .fillMaxSize()
+                                                                    .padding(horizontal = 14.dp),
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                horizontalArrangement = Arrangement.Center
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = Icons.Rounded.DeleteOutline,
+                                                                    contentDescription = null,
+                                                                    modifier = Modifier.size(20.dp)
+                                                                )
+                                                                Spacer(Modifier.width(8.dp))
+                                                                Text(
+                                                                    text = if (isHome) "Reset to Default" else "Reset Wallpaper",
+                                                                    style = MaterialTheme.typography.labelLarge.copy(
+                                                                        fontWeight = FontWeight.Bold
+                                                                    ),
+                                                                    maxLines = 1
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            // Slider 1: Dimming Intensity Layer
+                                            val isFollowSystem = !isHome && wallpaperDim < 0
+                                            Column(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Column {
+                                                        Text(
+                                                            text = "Dimming Layer",
+                                                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                                            color = scheme.onSurface
+                                                        )
+                                                        Text(
+                                                            text = if (isFollowSystem) "Following system preference ($systemDim%)" else "Adjust wallpaper gradient dimming opacity",
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = scheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                    ) {
+                                                        if (!isHome) {
+                                                            val followShape = RoundedCornerShape(10.dp)
+                                                            val toggleFollow = {
+                                                                val next = if (isFollowSystem) 75 else -1
+                                                                wallpaperDim = next
+                                                                context.setGameWallpaperDim(pkg, next)
+                                                            }
+                                                            Surface(
+                                                                shape = followShape,
+                                                                color = if (isFollowSystem) scheme.primaryContainer else scheme.surfaceContainerHighest,
+                                                                contentColor = if (isFollowSystem) scheme.onPrimaryContainer else scheme.onSurfaceVariant,
+                                                                modifier = Modifier
+                                                                    .gamepadFocusOutline(
+                                                                        shape = followShape,
+                                                                        register = true,
+                                                                        onActivate = toggleFollow
+                                                                    )
+                                                                    .clip(followShape)
+                                                                    .focusProperties { canFocus = false }
+                                                                    .clickable(onClick = toggleFollow)
+                                                            ) {
+                                                                Text(
+                                                                    text = "Follow System",
+                                                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                                )
+                                                            }
+                                                        }
+                                                        if (!isFollowSystem) {
+                                                            Text(
+                                                                text = "${if (isHome) wallpaperDim else wallpaperDim}%",
+                                                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                                                color = scheme.primary
+                                                            )
+                                                        }
+                                                    }
+                                                }
+
+                                                if (!isFollowSystem) {
+                                                    ZenithSlider(
+                                                        value = wallpaperDim.toFloat(),
+                                                        onValueChange = { raw ->
+                                                            val snapped = ((raw / 5f).roundToInt() * 5).coerceIn(15, 100)
+                                                            if (snapped != wallpaperDim) {
+                                                                wallpaperDim = snapped
+                                                            }
+                                                        },
+                                                        onValueChangeFinished = {
+                                                            if (isHome) {
+                                                                context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+                                                                    .edit()
+                                                                    .putInt("gamespace_wallpaper_dimming_intensity", wallpaperDim)
+                                                                    .apply()
+                                                            } else {
+                                                                context.setGameWallpaperDim(pkg, wallpaperDim)
+                                                            }
+                                                        },
+                                                        valueRange = 15f..100f,
+                                                        steps = 16,
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .height(28.dp)
+                                                    )
+                                                }
+                                            }
+
+                                            // Slider 2: Wallpaper Blur
+                                            Column(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Column {
+                                                        Text(
+                                                            text = "Wallpaper Blur",
+                                                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                                            color = scheme.onSurface
+                                                        )
+                                                        Text(
+                                                            text = "Adjust background depth-of-field blur",
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = scheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                    Text(
+                                                        text = if (wallpaperBlur == 0) "Sharp (0 dp)" else "$wallpaperBlur dp",
+                                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                                        color = scheme.primary
+                                                    )
+                                                }
+
+                                                ZenithSlider(
+                                                    value = wallpaperBlur.toFloat(),
+                                                    onValueChange = { raw ->
+                                                        val snapped = raw.roundToInt().coerceIn(0, 25)
+                                                        if (snapped != wallpaperBlur) {
+                                                            wallpaperBlur = snapped
+                                                        }
+                                                    },
+                                                    onValueChangeFinished = {
+                                                        if (isHome) {
+                                                            context.setHomeWallpaperBlur(wallpaperBlur)
+                                                        } else {
+                                                            context.setGameWallpaperBlur(pkg, wallpaperBlur)
+                                                        }
+                                                    },
+                                                    valueRange = 0f..25f,
+                                                    steps = 24,
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(28.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    }
+}
+
