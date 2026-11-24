@@ -139,7 +139,7 @@ fun BypassChargeCheckScreen(navController: NavController) {
 
 
     fun refreshBypassData(onComplete: ((List<Pair<String, String>>) -> Unit)? = null) {
-        activePath = PropertyUtils.get("persist.sys.azenithconf.bypasspath", "UNSUPPORTED")
+        activePath = PropertyUtils.get("persist.sys.azenithConfIntg.bypasspath", "UNSUPPORTED")
         
         scope.launch(Dispatchers.IO) {
             val binaryPath = "/data/adb/modules/AZenith/system/bin/sys.azenith-service"
@@ -218,7 +218,7 @@ fun BypassChargeCheckScreen(navController: NavController) {
 
 
     fun applyBypassNode(nodeName: String) {
-        PropertyUtils.set("persist.sys.azenithconf.bypasspath", nodeName)
+        PropertyUtils.set("persist.sys.azenithConfIntg.bypasspath", nodeName)
         scope.launch(Dispatchers.IO) {
             val file = SuFile("/data/adb/.config/AZenith/bypasschgconfig/bypasspath")
             SuFileOutputStream.open(file).writer().use { writer ->

@@ -1,293 +1,141 @@
-/*
- * Copyright (C) 2026-2027 Zexshia
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package zx.azenith.ui.util
 
-
 import android.os.FileObserver
-import com.topjohnwu.superuser.Shell
-import com.topjohnwu.superuser.io.SuFile
+import android.os.IBinder
 import java.io.File
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.launch
+import org.lsposed.hiddenapibypass.HiddenApiBypass
 import zx.azenith.R
 
-
 object RootUtils {
-    private const val MODULE_DIR = "/data/adb/modules/AZenith"
-    private const val API_DIR_PATH = "/data/data/zx.azenith/API"
+    private const val SERVICE_NAME = "vendor.azenith.IAZenithService/default"
+    private const val DAEMON_BIN = "/system_ext/bin/vendor.azenith-service"
+    private const val API_DIR_PATH = "/data/system/AZenithInt/API"
     private const val PROFILE_FILE_NAME = "current_profile"
-    private const val PROFILE_PATH = "$API_DIR_PATH/$PROFILE_FILE_NAME"
-    private const val DAEMON_API_DIR_PATH = "/data/adb/.config/AZenith/API"
-    private const val DAEMON_PROFILE_PATH = "$DAEMON_API_DIR_PATH/$PROFILE_FILE_NAME"
     private const val MODES_FILE_NAME = "current_modes"
-    private const val DAEMON_MODES_PATH = "$DAEMON_API_DIR_PATH/$MODES_FILE_NAME"
+    private const val PROFILE_PATH = "$API_DIR_PATH/$PROFILE_FILE_NAME"
+    private const val MODES_PATH = "$API_DIR_PATH/$MODES_FILE_NAME"
+    private const val GAMEINFO_PATH = "$API_DIR_PATH/gameinfo"
 
-    /**
-     * Read a file through the root shell. Returns null when the file is missing
-     * or unreadable, which is the same branch every `Shell.cmd("cat …").exec()`
-     * call site used to take on failure.
-     */
-    internal fun readRootFile(path: String): String? {
-        return try {
-            val file = SuFile(path)
-            if (!file.exists()) return null
-            file.newInputStream().bufferedReader().use { it.readText().trim() }
-        } catch (e: Exception) {
-            null
-        }
+    private val hiddenApiReady by lazy {
+        runCatching { HiddenApiBypass.addHiddenApiExemptions("") }.isSuccess
     }
 
-    /**
-     * Write a file through the root shell. Content is written verbatim -- a
-     * caller replacing `Shell.cmd("echo $v > f")` must include the trailing
-     * newline itself, because `echo` appended one.
-     */
+    internal fun getService(): IBinder? = try {
+        hiddenApiReady
+        Class.forName("android.os.ServiceManager")
+            .getMethod("checkService", String::class.java)
+            .invoke(null, SERVICE_NAME) as? IBinder
+    } catch (e: Exception) { null }
+
+    internal fun isServiceAlive(): Boolean = try {
+        getService()?.pingBinder() == true
+    } catch (e: Exception) { false }
+
+    internal fun readRootFile(path: String): String? = try {
+        val f = File(path)
+        if (f.exists() && f.canRead()) f.readText().trim() else null
+    } catch (e: Exception) { null }
+
     internal fun writeRootFile(path: String, content: String) {
         try {
-            val file = SuFile(path)
-            val dir = SuFile(path.substringBeforeLast('/', ""))
-            if (!dir.exists()) dir.mkdirs()
-            val tmp = SuFile(dir, file.name + ".tmp_" + System.nanoTime())
-            tmp.newOutputStream().use { it.write(content.toByteArray()) }
+            val file = File(path)
+            file.parentFile?.mkdirs()
+            val tmp = File(file.parentFile, file.name + ".tmp_" + System.nanoTime())
+            tmp.writeText(content)
             tmp.renameTo(file)
-        } catch (e: Exception) {
-            // no-op
-        }
+        } catch (e: Exception) { }
     }
 
-    /**
-     * Create an empty file through the root shell, replacing `touch <path>`.
-     */
     internal fun touchRootFile(path: String) {
         try {
-            val file = SuFile(path)
-            if (!file.exists()) {
-                SuFile(path.substringBeforeLast('/', "")).mkdirs()
-                file.createNewFile()
-            }
-        } catch (e: Exception) {
-            // no-op
-        }
+            val f = File(path)
+            if (!f.exists()) { f.parentFile?.mkdirs(); f.createNewFile() }
+        } catch (e: Exception) { }
     }
 
-    /**
-     * Whether a path exists through the root shell, replacing `test -e <path>`.
-     */
-    internal fun rootFileExists(path: String): Boolean {
-        return try {
-            SuFile(path).exists()
-        } catch (e: Exception) {
-            false
-        }
-    }
+    internal fun rootFileExists(path: String): Boolean = try {
+        File(path).exists()
+    } catch (e: Exception) { false }
 
-    /**
-     * Delete a path through the root shell, replacing `rm -f <path>`. Missing is
-     * not an error, matching `rm -f`.
-     */
     internal fun deleteRootFile(path: String) {
-        try {
-            SuFile(path).delete()
-        } catch (e: Exception) {
-            // no-op
-        }
+        try { File(path).delete() } catch (e: Exception) { }
     }
 
-    private fun syncProfileState() {
-        val apiDir = SuFile(API_DIR_PATH)
-        if (!apiDir.exists()) {
-            apiDir.mkdirs()
-        }
-
-        val daemonFile = SuFile(DAEMON_PROFILE_PATH)
-        if (daemonFile.exists()) {
-            val content = daemonFile.newInputStream().bufferedReader().use { it.readText() }
-            // The mirror is written into the very directory FileObserver watches, so an
-            // unconditional write re-fires the observer that called us -- ~20 root shells a
-            // second, forever. Only write when the value actually moved.
-            if (content == readMirror()) return
-            writeRootFile(PROFILE_PATH, content)
-        }
-    }
-
-    private fun readMirror(): String? = try {
-        File(PROFILE_PATH).takeIf { it.exists() }?.readText()
-    } catch (e: Exception) {
-        null
-    }
-
-    fun getModuleVersionCode(): Int {
-        // Was `grep '^versionCode=' … | cut -d= -f2` through a shell. Read the
-        // file and take the line directly rather than spawning grep and cut.
-        val content = readRootFile("$MODULE_DIR/module.prop")
-            ?: return -1
-        val line = content.lineSequence()
-            .firstOrNull { it.startsWith("versionCode=") }
-            ?: return -1
-        return line.substringAfter("versionCode=").trim().toIntOrNull() ?: -1
-    }
+    fun getModuleVersionCode(): Int = -1
 
     data class GameInfo(val pkg: String?, val startTime: String?)
 
     fun observeGameInfo(): Flow<GameInfo> = flow {
         var lastInfo: GameInfo? = null
         while (true) {
-            val raw = readRootFile("/data/data/zx.azenith/API/gameinfo")
+            val raw = readRootFile(GAMEINFO_PATH)
             var currentInfo = GameInfo(null, null)
-
             if (!raw.isNullOrBlank()) {
                 val lines = raw.lines()
                 val firstLine = lines[0].split(" ")
-
                 val pkg = firstLine.getOrNull(0)?.takeIf { it != "NULL" && it.isNotBlank() }
                 val time = lines.find { it.startsWith("Time:") }?.substringAfter("Time:")?.trim()
-
                 currentInfo = GameInfo(pkg, time)
             }
-
-            if (currentInfo != lastInfo) {
-                emit(currentInfo)
-                lastInfo = currentInfo
-            }
+            if (currentInfo != lastInfo) { emit(currentInfo); lastInfo = currentInfo }
             delay(2000)
         }
     }.flowOn(Dispatchers.IO)
 
-    // Raw "0".."3" alongside the resolved label: "1" maps to two different strings depending on
-    // litemode, so the dialog cannot match on the label to highlight the active row.
     fun observeProfileValue(): Flow<String> = callbackFlow {
-        syncProfileState()
-
         trySend(getCurrentProfileValue())
-
-        val job = launch {
-            watchDaemonProfile {
-                syncProfileState()
-                trySend(getCurrentProfileValue())
-            }
-        }
-
+        val job = launch { watchDaemonFile(PROFILE_FILE_NAME) { trySend(getCurrentProfileValue()) } }
         awaitClose { job.cancel() }
     }.flowOn(Dispatchers.IO)
 
-    /**
-     * The daemon owns the profile file and writes it under /data/adb, so a
-     * FileObserver on the app-private mirror never fires when the profile
-     * changes. Watch the daemon's directory and mirror the value across on
-     * every event; the app then reads a file it can actually reach.
-     */
-    /**
-     * /data/adb is drwx------ root, so an inotify watch on the daemon's API dir
-     * always fails with EACCES and FileObserver swallows it -- the app never sees
-     * a single event. Poll the daemon file through root instead, and mirror it
-     * into the app-private dir so the rest of the app can read it directly.
-     */
-    private suspend fun CoroutineScope.watchDaemonProfile(
-        fileName: String = PROFILE_FILE_NAME,
-        onChange: () -> Unit
-    ) {
-        val dir = SuFile(API_DIR_PATH)
-        if (!dir.exists()) dir.mkdirs()
-
-        val observer = object : FileObserver(dir.absolutePath, MODIFY or CREATE or MOVED_TO) {
-            override fun onEvent(event: Int, path: String?) {
-                if (path == fileName) onChange()
-            }
+    private suspend fun CoroutineScope.watchDaemonFile(fileName: String, onChange: () -> Unit) {
+        val observer = object : FileObserver(API_DIR_PATH, MODIFY or CREATE or MOVED_TO or CLOSE_WRITE) {
+            override fun onEvent(event: Int, path: String?) { if (path == fileName) onChange() }
         }
-        observer.startWatching()
+        runCatching { observer.startWatching() }
         try {
             var last: String? = null
             while (true) {
-                val current = readRootFile(DAEMON_API_DIR_PATH + "/" + fileName)?.trim()
-                if (current != null && current != last) {
-                    last = current
-                    onChange()
-                }
+                val current = readRootFile("$API_DIR_PATH/$fileName")
+                if (current != null && current != last) { last = current; onChange() }
                 delay(600)
             }
-        } finally {
-            observer.stopWatching()
-        }
+        } finally { runCatching { observer.stopWatching() } }
     }
 
-    /**
-     * Auto mode lives in AIenabled but is mirrored to current_modes by whoever
-     * flips the toggle, so watch the mirror rather than polling a property the
-     * app itself wrote -- that way a change made from the Settings tab or the
-     * tile both reach the home screen immediately.
-     */
     fun observeAutoMode(): Flow<String> = callbackFlow {
         trySend(getAutoModeValue())
-
-        val job = launch {
-            watchDaemonProfile(fileName = MODES_FILE_NAME) {
-                trySend(getAutoModeValue())
-            }
-        }
-
+        val job = launch { watchDaemonFile(MODES_FILE_NAME) { trySend(getAutoModeValue()) } }
         awaitClose { job.cancel() }
     }.flowOn(Dispatchers.IO)
 
     private fun getAutoModeValue(): String =
-        readRootFile(DAEMON_MODES_PATH)?.trim()
-            ?: PropertyUtils.get("persist.sys.azenithconf.AIenabled")
+        readRootFile(MODES_PATH)?.trim() ?: PropertyUtils.get("persist.sys.azenithConfIntg.AIenabled")
 
-    fun getCurrentProfileValue(): String {
-        // The mirror is the app's own file; a plain read costs nothing, a SuFile read
-        // spawns a root shell command every time a profile event lands.
-        val appMirror = readMirror()?.trim()
-        if (!appMirror.isNullOrEmpty()) return appMirror
-        return readRootFile(DAEMON_PROFILE_PATH)?.trim().orEmpty()
-    }
+    fun getCurrentProfileValue(): String = readRootFile(PROFILE_PATH)?.trim().orEmpty()
 
     fun observeProfileRes(): Flow<Int> = callbackFlow {
-        syncProfileState()
-
         trySend(getCurrentProfileRes())
-
-        val job = launch {
-            watchDaemonProfile {
-                syncProfileState()
-                trySend(getCurrentProfileRes())
-            }
-        }
-
+        val job = launch { watchDaemonFile(PROFILE_FILE_NAME) { trySend(getCurrentProfileRes()) } }
         awaitClose { job.cancel() }
     }.flowOn(Dispatchers.IO)
 
     fun getCurrentProfileRes(): Int {
         val content = readRootFile(PROFILE_PATH)?.trim()
-
-        if (content.isNullOrBlank()) {
-            return R.string.status_unknown
-        }
-
+        if (content.isNullOrBlank()) return R.string.status_unknown
         return when (content) {
             "0" -> R.string.status_initializing
             "1" -> {
-                val isLite = PropertyUtils.get("persist.sys.azenithconf.litemode", "0") == "1"
+                val isLite = PropertyUtils.get("persist.sys.azenithConfIntg.litemode", "0") == "1"
                 if (isLite) R.string.profile_perflite else R.string.Profile_Performance
             }
             "2" -> R.string.Profile_Balanced
@@ -296,106 +144,25 @@ object RootUtils {
         }
     }
 
-    fun requestRootAccess(): Boolean {
-        val currentShell = Shell.getCachedShell()
-        if (currentShell != null && !currentShell.isRoot) {
-            currentShell.close()
-        }
-        return Shell.getShell().isRoot
-    }
+    fun requestRootAccess(): Boolean = true
+    fun isRootGranted(): Boolean = true
+    fun getRootManager(): String = "System"
 
     fun observeServiceStatusRes(): Flow<Pair<Int, String>> = flow {
         var lastStatus: Pair<Int, String>? = null
         while (true) {
             val currentStatus = getServiceStatusRes()
-            if (currentStatus != lastStatus) {
-                emit(currentStatus)
-                lastStatus = currentStatus
-            }
+            if (currentStatus != lastStatus) { emit(currentStatus); lastStatus = currentStatus }
             delay(2000)
         }
     }.flowOn(Dispatchers.IO)
 
-    fun isRootGranted(): Boolean {
-        val currentShell = Shell.getCachedShell()
-        if (currentShell != null && !currentShell.isRoot) {
-            currentShell.close()
-        }
-        return Shell.getShell().isRoot
-    }
+    fun isModuleInstalled(): Boolean = File(DAEMON_BIN).exists() || isServiceAlive()
 
-    fun getRootManager(): String {
-        return try {
-            val suVer = Shell.cmd("su -v").exec().out.firstOrNull() ?: ""
-            when {
-                suVer.contains("KernelSU", ignoreCase = true) -> "KernelSU"
-                suVer.contains("MAGISK", ignoreCase = true) -> "Magisk"
-                suVer.contains("APatch", ignoreCase = true) -> "APatch"
-                SuFile("/data/adb/ksu").exists() -> "KernelSU"
-                SuFile("/data/adb/magisk").exists() -> "Magisk"
-                SuFile("/data/adb/ap").exists() -> "APatch"
-                suVer.isNotBlank() -> suVer.substringAfter(':').ifBlank { suVer }
-                else -> "Superuser"
-            }
-        } catch (_: Exception) {
-            "Superuser"
-        }
-    }
+    fun getServiceStatusRes(): Pair<Int, String> =
+        if (isServiceAlive()) R.string.status_alive to "" else R.string.status_suspended to ""
 
-    fun isModuleInstalled(): Boolean {
-        return SuFile(MODULE_DIR).exists()
-    }
-
-    fun getServiceStatusRes(): Pair<Int, String> {
-        // Stays a shell call. The obvious alternative -- scanning /proc for the
-        // daemon -- is much worse: libsu implements a SuFile read by running
-        // `dd` (ShellBlockIO), so a scan would fork one process per /proc entry
-        // on a device that runs a few hundred, every two seconds. One `pidof`
-        // fork per poll is the cheaper shape.
-        val result = Shell.cmd("pidof sys.azenith-service").exec()
-        return if (result.isSuccess) {
-            val pid = result.out.firstOrNull() ?: ""
-            R.string.status_alive to pid
-        } else {
-            R.string.status_suspended to ""
-        }
-    }
-
-    fun isUpdateApkAvailable(): Boolean {
-        return SuFile("/data/adb/modules/AZenith/AZenith.apk").exists()
-    }
-
-    fun isModuleUpdatePendingReboot(): Boolean {
-        return SuFile("/data/adb/modules/AZenith/update").exists()
-    }
-
-    /**
-     * Re-asserts the app-ops the manager cannot take for granted after a boot.
-     *
-     * MIUI/HyperOS and other Chinese forks gate package visibility behind a vendor
-     * app-op, and `pm grant` alone leaves the list showing only this app. The
-     * app-ops are a parallel route, not a follow-up to the grant, so every
-     * spelling is issued regardless of what the grant returned.
-     *
-     * The same forks can reset SYSTEM_ALERT_WINDOW, and without that app-op Game
-     * Space can neither attach its overlay nor start its foreground service from
-     * the daemon's background broadcast, so it is re-asserted here as well.
-     */
-    fun ensurePackageVisibility() {
-        val cmds = mutableListOf(
-            "appops set zx.azenith SYSTEM_ALERT_WINDOW allow",
-            "pm grant zx.azenith android.permission.QUERY_ALL_PACKAGES",
-            "pm grant zx.azenith com.android.permission.GET_INSTALLED_APPS",
-            "appops set zx.azenith android:query_all_packages allow",
-            "appops set zx.azenith query_all_packages allow",
-            "appops set zx.azenith android:get_installed_apps allow",
-            "appops set zx.azenith GET_INSTALLED_APPS allow",
-            "appops set zx.azenith 10022 allow"
-        )
-        try {
-            Shell.cmd(cmds.joinToString("\n") { "$it 2>/dev/null" }).exec()
-        } catch (e: Exception) {
-            // no-op
-        }
-    }
+    fun isUpdateApkAvailable(): Boolean = false
+    fun isModuleUpdatePendingReboot(): Boolean = false
+    fun ensurePackageVisibility() {}
 }

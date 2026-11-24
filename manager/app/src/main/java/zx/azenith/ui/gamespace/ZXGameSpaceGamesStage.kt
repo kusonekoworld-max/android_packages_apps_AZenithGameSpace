@@ -865,7 +865,7 @@ internal fun WelcomeHubStage(
     var autoMode by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
-            autoMode = PropertyUtils.get("persist.sys.azenithconf.AIenabled")
+            autoMode = PropertyUtils.get("persist.sys.azenithConfIntg.AIenabled")
         }
     }
     LaunchedEffect(Unit) {

@@ -138,7 +138,7 @@ fun SearchScreen(
     var capabilities by remember { mutableStateOf(SearchCapabilities()) }
     LaunchedEffect(Unit) {
         capabilities = withContext(Dispatchers.IO) {
-            val bypassPath = PropertyUtils.get("persist.sys.azenithconf.bypasspath", "")
+            val bypassPath = PropertyUtils.get("persist.sys.azenithConfIntg.bypasspath", "")
             val maliCheck = Shell.cmd(
                 "/data/adb/modules/AZenith/system/bin/sys.azenith-utilityconf checkmalipath"
             ).exec().out.joinToString("").trim()

@@ -36,7 +36,7 @@ class ProfileTileService : TileService() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     companion object {
-        private const val AI_PROP = "persist.sys.azenithconf.AIenabled"
+        private const val AI_PROP = "persist.sys.azenithConfIntg.AIenabled"
         private const val DAEMON_BIN = "/data/adb/modules/AZenith/system/bin/sys.azenith-service"
     }
 

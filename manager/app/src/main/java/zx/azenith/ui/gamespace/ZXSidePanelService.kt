@@ -228,21 +228,21 @@ class ZXSidePanelService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
         private const val APPLIST_PATH = "/data/adb/.config/AZenith/gamelist/azenithApplist.json"
         private const val APP_STATUS_PATH = "/data/adb/.config/AZenith/app_status"
         private const val DAEMON_BIN = "/data/adb/modules/AZenith/system/bin/sys.azenith-service"
-        private const val DAEMON_PROFILE_PATH = "/data/adb/.config/AZenith/API/current_profile"
+        private const val DAEMON_PROFILE_PATH = "/data/system/AZenithInt/API/current_profile"
         private const val APP_PROFILE_PATH = "/data/data/zx.azenith/API/current_profile"
-        private const val DAEMON_GAMEINFO_PATH = "/data/adb/.config/AZenith/API/gameinfo"
-        private const val APP_GAMEINFO_PATH = "/data/data/zx.azenith/API/gameinfo"
-        private const val DAEMON_MODES_PATH = "/data/adb/.config/AZenith/API/current_modes"
-        private const val DAEMON_RECORD_CMD_PATH = "/data/adb/.config/AZenith/API/record_cmd"
-        private const val DAEMON_RECORD_STATE_PATH = "/data/adb/.config/AZenith/API/record_state"
+        private const val DAEMON_GAMEINFO_PATH = "/data/system/AZenithInt/API/gameinfo"
+        private const val APP_GAMEINFO_PATH = "/data/system/AZenithInt/API/gameinfo"
+        private const val DAEMON_MODES_PATH = "/data/system/AZenithInt/API/current_modes"
+        private const val DAEMON_RECORD_CMD_PATH = "/data/system/AZenithInt/API/record_cmd"
+        private const val DAEMON_RECORD_STATE_PATH = "/data/system/AZenithInt/API/record_state"
         private const val FRAMERATEDATA_DIR = "/data/adb/.config/AZenith/frameratedata"
-        private const val AI_PROP = "persist.sys.azenithconf.AIenabled"
-        private const val LITE_PROP = "persist.sys.azenithconf.litemode"
-        private const val BYPASS_PROP = "persist.sys.azenithconf.bypasschg"
+        private const val AI_PROP = "persist.sys.azenithConfIntg.AIenabled"
+        private const val LITE_PROP = "persist.sys.azenithConfIntg.litemode"
+        private const val BYPASS_PROP = "persist.sys.azenithConfIntg.bypasschg"
         private const val PREF_QUICK_APPS = "gamespace_sidepanel_quick_apps"
         const val PREF_SIDEPANEL_ENABLED = "gamespace_sidepanel_enabled"
 
-        const val PROP_FORCE_SIDEPANEL = "persist.sys.azenith.force_sidepanel"
+        const val PROP_FORCE_SIDEPANEL = "persist.sys.azenithIntg.force_sidepanel"
         const val PROP_FORCE_SIDEPANEL_DEBUG = "debug.azenith.force_sidepanel"
 
         val appsOpenedFromAzenith: MutableSet<String> = java.util.Collections.synchronizedSet(mutableSetOf<String>())
@@ -1733,7 +1733,7 @@ class ZXSidePanelService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
                     var screenAwake = pm?.isInteractive ?: true
                     var focusedPkg: String? = null
 
-                    val daemonRunning = PropertyUtils.get("persist.sys.azenith.state", "") == "running"
+                    val daemonRunning = PropertyUtils.get("persist.sys.azenithIntg.state", "") == "running"
                     if (daemonRunning) {
                         val statusText = telemetryCollector.readFileTextDirectOrSu(APP_STATUS_PATH, rootGranted)
                         if (!statusText.isNullOrBlank()) {
@@ -2140,7 +2140,7 @@ class ZXSidePanelService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
                     val batteryInfo = readBatteryAndThermal(rootGranted)
 
                     // 3. Read AZenith Auto Mode, Running Profile, and Profile Duration
-                    val daemonRunning = PropertyUtils.get("persist.sys.azenith.state", "") == "running"
+                    val daemonRunning = PropertyUtils.get("persist.sys.azenithIntg.state", "") == "running"
                     val aiPropVal = PropertyUtils.get(AI_PROP, "")
                     val modesFileVal = telemetryCollector.readFileTextDirectOrSu(DAEMON_MODES_PATH, rootGranted)?.trim()
                     val resolvedAuto = when {
@@ -2384,7 +2384,7 @@ private class ZXRealTelemetryCollector {
                 "chmod 0444 /sys/devices/system/cpu/cpu*/cpufreq/* /proc/stat 2>/dev/null",
                 "chmod 0755 /sys/kernel/ged /sys/kernel/ged/hal /sys/class/devfreq 2>/dev/null",
                 "chmod 0444 /sys/kernel/ged/hal/* /sys/module/ged/parameters/* /sys/class/kgsl/kgsl-3d0/* /sys/class/devfreq/*/* /proc/mali/utilization /sys/devices/platform/*.mali/utilization 2>/dev/null",
-                "chmod 0644 /data/adb/.config/AZenith/API/* /data/data/zx.azenith/API/* 2>/dev/null"
+                "chmod 0644 /data/system/AZenithInt/API/* /data/data/zx.azenith/API/* 2>/dev/null"
             ).exec()
         }
     }
@@ -2711,7 +2711,7 @@ private class ZXRealTelemetryCollector {
      * be stat'ed without su.
      */
     private fun readDaemonFps(cap: Int, rootGranted: Boolean): Int? {
-        val raw = readFileTextDirectOrSu("/data/adb/.config/AZenith/API/current_fps", rootGranted)
+        val raw = readFileTextDirectOrSu("/data/system/AZenithInt/API/current_fps", rootGranted)
             ?: return null
         val f = raw.trim().split(Regex("\\s+"))
         if (f.size < 2) return null

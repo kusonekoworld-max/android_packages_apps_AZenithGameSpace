@@ -241,8 +241,8 @@ fun GetStartedScreen(navController: NavController, onCompleted: () -> Unit = {})
 
     LaunchedEffect(Unit) {
         val (toastOut, aiOut) = withContext(Dispatchers.IO) {
-            PropertyUtils.get("persist.sys.azenithconf.showtoast") to
-                PropertyUtils.get("persist.sys.azenithconf.AIenabled")
+            PropertyUtils.get("persist.sys.azenithConfIntg.showtoast") to
+                PropertyUtils.get("persist.sys.azenithConfIntg.AIenabled")
         }
         if (toastOut == "0") stateToast = false
         if (aiOut == "0") autoMode = true
@@ -622,7 +622,7 @@ fun GetStartedScreen(navController: NavController, onCompleted: () -> Unit = {})
                                                     onCheckedChange = { isChecked ->
                                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                         stateToast = isChecked
-                                                        Shell.cmd("su -c setprop persist.sys.azenithconf.showtoast ${if (isChecked) "1" else "0"}").submit()
+                                                        Shell.cmd("su -c setprop persist.sys.azenithConfIntg.showtoast ${if (isChecked) "1" else "0"}").submit()
                                                     }
                                                 )
                                             }
@@ -640,8 +640,8 @@ fun GetStartedScreen(navController: NavController, onCompleted: () -> Unit = {})
                                                         autoMode = isChecked
                                                         val state = if (isChecked) "0" else "1"
                                                         Shell.cmd(
-                                                            "su -c setprop persist.sys.azenithconf.AIenabled $state",
-                                                            "su -c \"echo $state > /data/adb/.config/AZenith/API/current_modes\""
+                                                            "su -c setprop persist.sys.azenithConfIntg.AIenabled $state",
+                                                            "su -c \"echo $state > /data/system/AZenithInt/API/current_modes\""
                                                         ).submit()
                                                     }
                                                 )

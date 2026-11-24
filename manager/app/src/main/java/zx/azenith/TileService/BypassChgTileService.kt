@@ -25,8 +25,8 @@ import zx.azenith.ui.util.RootUtils
 
 class BypassChgTileService : TileService() {
 
-    private val BYPASS_PROP = "persist.sys.azenithconf.bypasschg"
-    private val PATH_PROP = "persist.sys.azenithconf.bypasspath"
+    private val BYPASS_PROP = "persist.sys.azenithConfIntg.bypasschg"
+    private val PATH_PROP = "persist.sys.azenithConfIntg.bypasspath"
     private val BYPASSCHG_FILE = "/data/adb/.config/AZenith/bypasschgconfig/bypasschg"
 
     override fun onStartListening() {

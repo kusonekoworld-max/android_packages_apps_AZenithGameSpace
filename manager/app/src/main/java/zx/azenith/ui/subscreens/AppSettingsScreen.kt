@@ -126,7 +126,7 @@ fun AppSettingsScreen(
     var bypassSupported by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         bypassSupported = withContext(Dispatchers.IO) {
-            val path = PropertyUtils.get("persist.sys.azenithconf.bypasspath", "")
+            val path = PropertyUtils.get("persist.sys.azenithConfIntg.bypasspath", "")
             path != "UNSUPPORTED" && path != "NEED_SETUP"
         }
     }

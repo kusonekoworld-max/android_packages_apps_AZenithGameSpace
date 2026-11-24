@@ -254,7 +254,7 @@ fun TweakScreen(
     // hop, and a bare `remember` block is not a suspend context.
     val currentSocType by produceState("") {
         value = withContext(Dispatchers.IO) {
-            PropertyUtils.get("persist.sys.azenith.soctype")
+            PropertyUtils.get("persist.sys.azenithIntg.soctype")
         }
     }
 

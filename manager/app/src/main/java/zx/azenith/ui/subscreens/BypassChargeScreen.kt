@@ -171,12 +171,12 @@ fun BypassChargeScreen(navController: NavController) {
     // Load properties asynchronously - skeleton shows immediately while loading
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
-            bypassPath = PropertyUtils.get("persist.sys.azenithconf.bypasspath", "")
+            bypassPath = PropertyUtils.get("persist.sys.azenithConfIntg.bypasspath", "")
 
-            val thresholdProp = PropertyUtils.get("persist.sys.azenithconf.bypasschgthreshold", "20")
+            val thresholdProp = PropertyUtils.get("persist.sys.azenithConfIntg.bypasschgthreshold", "20")
             thresholdValue = thresholdProp.toFloatOrNull()?.coerceIn(20f, 50f) ?: 20f
 
-            bypassChgState = PropertyUtils.get("persist.sys.azenithconf.bypasschg", "0") == "1"
+            bypassChgState = PropertyUtils.get("persist.sys.azenithConfIntg.bypasschg", "0") == "1"
         }
     }
 
@@ -193,7 +193,7 @@ fun BypassChargeScreen(navController: NavController) {
         // thresholdValue is the value the drag left behind; currentVal is only a
         // fallback for the (unlikely) case it has not been set yet.
         val finalValue = thresholdValue ?: currentVal
-        PropertyUtils.set("persist.sys.azenithconf.bypasschgthreshold", finalValue.toInt().toString())
+        PropertyUtils.set("persist.sys.azenithConfIntg.bypasschgthreshold", finalValue.toInt().toString())
         writeScope.launch(Dispatchers.IO) {
             RootUtils.writeRootFile("/data/adb/.config/AZenith/bypasschgconfig/bypasschgthreshold", "${finalValue.toInt()}\n")
         }
@@ -201,7 +201,7 @@ fun BypassChargeScreen(navController: NavController) {
     val onToggleBypass: (Boolean) -> Unit = { isChecked ->
         val value = if (isChecked) "1" else "0"
         bypassChgState = isChecked
-        PropertyUtils.set("persist.sys.azenithconf.bypasschg", value)
+        PropertyUtils.set("persist.sys.azenithConfIntg.bypasschg", value)
         writeScope.launch(Dispatchers.IO) {
             RootUtils.writeRootFile("/data/adb/.config/AZenith/bypasschgconfig/bypasschg", "$value\n")
         }

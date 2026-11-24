@@ -139,7 +139,7 @@ class ZenithReceiver : BroadcastReceiver() {
             it.contains("profile") || it.contains("mode") || it.contains("initializing...")
         }
     
-        if (isProfile && PropertyUtils.get("persist.sys.azenith.profilenotifications") == "0") {
+        if (isProfile && PropertyUtils.get("persist.sys.azenithIntg.profilenotifications") == "0") {
             return
         }
     

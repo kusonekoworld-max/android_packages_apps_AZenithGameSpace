@@ -197,12 +197,12 @@ fun ColorSchemeSettings(navController: NavController) {
 
     val saveToProp = {
         val config = "${redVal.toInt()} ${greenVal.toInt()} ${blueVal.toInt()} ${satVal.toInt()}"
-        PropertyUtils.set("persist.sys.azenithconf.schemeconfig", config)
+        PropertyUtils.set("persist.sys.azenithConfIntg.schemeconfig", config)
     }
 
     LaunchedEffect(Unit) {
         val rawProp = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            PropertyUtils.get("persist.sys.azenithconf.schemeconfig")
+            PropertyUtils.get("persist.sys.azenithConfIntg.schemeconfig")
         }
         if (rawProp.isNotEmpty()) {
             val parts = rawProp.split(" ").mapNotNull { it.toFloatOrNull() }

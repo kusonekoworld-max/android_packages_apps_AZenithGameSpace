@@ -123,8 +123,8 @@ fun FpsGoSettings(navController: NavController) {
     // after the screen is torn down and rebuilt.
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
-            fpsgostate.value = PropertyUtils.get("persist.sys.azenithconf.usefpsgo") == "1"
-            fpsgogedstate.value = PropertyUtils.get("persist.sys.azenithconf.fpsged") == "1"
+            fpsgostate.value = PropertyUtils.get("persist.sys.azenithConfIntg.usefpsgo") == "1"
+            fpsgogedstate.value = PropertyUtils.get("persist.sys.azenithConfIntg.fpsged") == "1"
         }
     }
 
@@ -186,7 +186,7 @@ fun FpsGoSettings(navController: NavController) {
                                                                          checked = fpsgostate.value == true,
                                                                          onCheckedChange = { isChecked ->
                                                                              fpsgostate.value = isChecked
-                                                                             PropertyUtils.set("persist.sys.azenithconf.usefpsgo", if (isChecked) "1" else "0")
+                                                                             PropertyUtils.set("persist.sys.azenithConfIntg.usefpsgo", if (isChecked) "1" else "0")
                                                                          }
                                                                      )
                                  }
@@ -213,7 +213,7 @@ fun FpsGoSettings(navController: NavController) {
                                                                         checked = fpsgogedstate.value == true,
                                                                         onCheckedChange = { isChecked ->
                                                                             fpsgogedstate.value = isChecked
-                                                                            PropertyUtils.set("persist.sys.azenithconf.fpsged", if (isChecked) "1" else "0")
+                                                                            PropertyUtils.set("persist.sys.azenithConfIntg.fpsged", if (isChecked) "1" else "0")
                                                                         }
                                                                     )
                                 }
