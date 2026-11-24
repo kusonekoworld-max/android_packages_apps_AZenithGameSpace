@@ -1,23 +1,5 @@
-/*
- * Copyright (C) 2026-2027 Zexshia
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package zx.azenith.ui.component
 
-
-import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -31,8 +13,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.BrokenImage
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
@@ -45,7 +31,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import zx.azenith.ui.viewmodel.ApplistViewmodel
 
-
 object AppIconCache {
     private val cache = LruCache<String, ImageBitmap>(150)
 
@@ -53,65 +38,69 @@ object AppIconCache {
 
     fun clear() = synchronized(cache) { cache.evictAll() }
 
-
     suspend fun loadIcon(pm: PackageManager, appInfo: ApplicationInfo, targetSizePx: Int): ImageBitmap =
         withContext(Dispatchers.IO) {
-
             get(appInfo.packageName)?.let { return@withContext it }
 
             val drawable = try {
                 appInfo.loadIcon(pm) ?: pm.defaultActivityIcon
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 pm.defaultActivityIcon
             }
 
-
-
             val bitmap = Bitmap.createBitmap(targetSizePx, targetSizePx, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
-
-
             drawable.setBounds(0, 0, targetSizePx, targetSizePx)
             drawable.draw(canvas)
 
             val imageBitmap = bitmap.asImageBitmap()
-
             synchronized(cache) {
                 cache.put(appInfo.packageName, imageBitmap)
             }
-
-            return@withContext imageBitmap
+            imageBitmap
         }
 }
-
 
 @Composable
 fun AppIconImage(
     app: ApplistViewmodel.AppInfo,
     size: Dp = 40.dp
 ) {
+    if (!app.isInstalled) {
+        Box(
+            modifier = Modifier
+                .size(size)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.errorContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.BrokenImage,
+                contentDescription = app.label,
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.size(size * 0.55f)
+            )
+        }
+        return
+    }
+
     val context = LocalContext.current
     val pm = context.packageManager
-    
-
     val density = LocalDensity.current
     val targetSizePx = remember(size, density) {
         with(density) { size.roundToPx() }
     }
-    
 
-    var appBitmap by remember(app.packageName) { 
-        mutableStateOf(AppIconCache.get(app.packageName)) 
+    var appBitmap by remember(app.packageName) {
+        mutableStateOf(AppIconCache.get(app.packageName))
     }
-
 
     LaunchedEffect(app.packageName, targetSizePx) {
         if (appBitmap == null) {
             app.packageInfo.applicationInfo?.let { appInfo ->
                 try {
                     appBitmap = AppIconCache.loadIcon(pm, appInfo, targetSizePx)
-                } catch (e: Exception) {
-                    e.printStackTrace()
+                } catch (_: Exception) {
                 }
             }
         }
@@ -124,10 +113,8 @@ fun AppIconImage(
             label = "IconFade"
         ) { icon ->
             if (icon == null) {
-
                 PlaceHolderBox(Modifier.fillMaxSize())
             } else {
-
                 Image(
                     bitmap = icon,
                     contentDescription = app.label,
@@ -145,7 +132,6 @@ private fun PlaceHolderBox(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
-
-            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)) 
+            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
     )
 }

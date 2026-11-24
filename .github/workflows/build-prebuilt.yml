@@ -1,11 +1,12 @@
-name: Build Prebuilt AZenithGameSpace APK
+name: Build AZenithGameSpace APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, "feat/**" ]
     paths:
       - 'manager/**'
       - 'changelog.md'
+      - '.github/workflows/build-prebuilt.yml'
   workflow_dispatch:
 
 permissions:
@@ -43,18 +44,38 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Build Release APK
+      - name: Build Debug & Release APKs
         working-directory: ./manager
         run: |
+          set -euo pipefail
           chmod +x ./gradlew
-          ./gradlew --no-daemon clean assembleRelease
+          ./gradlew --no-daemon assembleDebug assembleRelease
 
-      - name: Commit Prebuilt APK
+      - name: Stage APK artifacts
         run: |
-          APK=$(find manager/app/build/outputs/apk/release -name "*.apk" | head -n 1)
-          test -f "$APK"
+          set -euo pipefail
+          DEBUG_APK=$(find manager/app/build/outputs/apk/debug -maxdepth 1 -type f -name "*.apk" | head -n 1)
+          RELEASE_APK=$(find manager/app/build/outputs/apk/release -maxdepth 1 -type f -name "*.apk" | head -n 1)
+          test -f "$DEBUG_APK"
+          test -f "$RELEASE_APK"
+          mkdir -p apk-artifacts
+          cp "$DEBUG_APK" apk-artifacts/AZenithGameSpace-debug.apk
+          cp "$RELEASE_APK" apk-artifacts/AZenithGameSpace-release.apk
+          (cd apk-artifacts && sha256sum *.apk > SHA256SUMS)
+          ls -lh apk-artifacts/
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: azenith-gamespace-apk-${{ github.sha }}
+          path: apk-artifacts/
+          if-no-files-found: error
+
+      - name: Update prebuilt APK on main branch
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: |
           mkdir -p prebuilt
-          cp "$APK" prebuilt/AZenithGameSpace.apk
+          cp apk-artifacts/AZenithGameSpace-release.apk prebuilt/AZenithGameSpace.apk
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -f prebuilt/AZenithGameSpace.apk

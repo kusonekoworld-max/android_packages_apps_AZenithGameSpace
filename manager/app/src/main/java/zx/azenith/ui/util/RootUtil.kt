@@ -34,16 +34,22 @@ object RootUtils {
         Class.forName("android.os.ServiceManager")
             .getMethod("checkService", String::class.java)
             .invoke(null, SERVICE_NAME) as? IBinder
-    } catch (e: Exception) { null }
+    } catch (_: Exception) {
+        null
+    }
 
     internal fun isServiceAlive(): Boolean = try {
         getService()?.pingBinder() == true
-    } catch (e: Exception) { false }
+    } catch (_: Exception) {
+        false
+    }
 
     internal fun readRootFile(path: String): String? = try {
         val f = File(path)
         if (f.exists() && f.canRead()) f.readText().trim() else null
-    } catch (e: Exception) { null }
+    } catch (_: Exception) {
+        null
+    }
 
     internal fun writeRootFile(path: String, content: String) {
         try {
@@ -52,25 +58,35 @@ object RootUtils {
             val tmp = File(file.parentFile, file.name + ".tmp_" + System.nanoTime())
             tmp.writeText(content)
             tmp.renameTo(file)
-        } catch (e: Exception) { }
+        } catch (_: Exception) {
+        }
     }
 
     internal fun touchRootFile(path: String) {
         try {
             val f = File(path)
-            if (!f.exists()) { f.parentFile?.mkdirs(); f.createNewFile() }
-        } catch (e: Exception) { }
+            if (!f.exists()) {
+                f.parentFile?.mkdirs()
+                f.createNewFile()
+            }
+        } catch (_: Exception) {
+        }
     }
 
     internal fun rootFileExists(path: String): Boolean = try {
         File(path).exists()
-    } catch (e: Exception) { false }
-
-    internal fun deleteRootFile(path: String) {
-        try { File(path).delete() } catch (e: Exception) { }
+    } catch (_: Exception) {
+        false
     }
 
-    fun getModuleVersionCode(): Int = -1
+    internal fun deleteRootFile(path: String) {
+        try {
+            File(path).delete()
+        } catch (_: Exception) {
+        }
+    }
+
+    fun getModuleVersionCode(): Int = AZenithControl.getApiVersion().takeIf { it > 0 } ?: -1
 
     data class GameInfo(val pkg: String?, val startTime: String?)
 
@@ -78,15 +94,20 @@ object RootUtils {
         var lastInfo: GameInfo? = null
         while (true) {
             val raw = readRootFile(GAMEINFO_PATH)
-            var currentInfo = GameInfo(null, null)
-            if (!raw.isNullOrBlank()) {
+            val currentInfo = if (!raw.isNullOrBlank()) {
                 val lines = raw.lines()
                 val firstLine = lines[0].split(" ")
                 val pkg = firstLine.getOrNull(0)?.takeIf { it != "NULL" && it.isNotBlank() }
                 val time = lines.find { it.startsWith("Time:") }?.substringAfter("Time:")?.trim()
-                currentInfo = GameInfo(pkg, time)
+                GameInfo(pkg, time)
+            } else {
+                val state = AZenithControl.getParsedState()
+                GameInfo(state?.activeApp, null)
             }
-            if (currentInfo != lastInfo) { emit(currentInfo); lastInfo = currentInfo }
+            if (currentInfo != lastInfo) {
+                emit(currentInfo)
+                lastInfo = currentInfo
+            }
             delay(2000)
         }
     }.flowOn(Dispatchers.IO)
@@ -99,17 +120,24 @@ object RootUtils {
 
     private suspend fun CoroutineScope.watchDaemonFile(fileName: String, onChange: () -> Unit) {
         val observer = object : FileObserver(API_DIR_PATH, MODIFY or CREATE or MOVED_TO or CLOSE_WRITE) {
-            override fun onEvent(event: Int, path: String?) { if (path == fileName) onChange() }
+            override fun onEvent(event: Int, path: String?) {
+                if (path == fileName) onChange()
+            }
         }
         runCatching { observer.startWatching() }
         try {
             var last: String? = null
             while (true) {
-                val current = readRootFile("$API_DIR_PATH/$fileName")
-                if (current != null && current != last) { last = current; onChange() }
-                delay(600)
+                val current = readRootFile("$API_DIR_PATH/$fileName") ?: getCurrentProfileValue()
+                if (current != last) {
+                    last = current
+                    onChange()
+                }
+                delay(1000)
             }
-        } finally { runCatching { observer.stopWatching() } }
+        } finally {
+            runCatching { observer.stopWatching() }
+        }
     }
 
     fun observeAutoMode(): Flow<String> = callbackFlow {
@@ -119,9 +147,20 @@ object RootUtils {
     }.flowOn(Dispatchers.IO)
 
     private fun getAutoModeValue(): String =
-        readRootFile(MODES_PATH)?.trim() ?: PropertyUtils.get("persist.sys.azenithConfIntg.AIenabled")
+        readRootFile(MODES_PATH)?.trim()
+            ?: PropertyUtils.get("persist.sys.azenithConfIntg.AIenabled")
 
-    fun getCurrentProfileValue(): String = readRootFile(PROFILE_PATH)?.trim().orEmpty()
+    fun getCurrentProfileValue(): String {
+        val fileVal = readRootFile(PROFILE_PATH)?.trim()
+        if (!fileVal.isNullOrBlank()) return fileVal
+        return when (AZenithControl.getParsedState()?.profile?.lowercase()) {
+            "performance" -> "1"
+            "balanced" -> "2"
+            "eco" -> "3"
+            "none" -> "0"
+            else -> ""
+        }
+    }
 
     fun observeProfileRes(): Flow<Int> = callbackFlow {
         trySend(getCurrentProfileRes())
@@ -130,8 +169,8 @@ object RootUtils {
     }.flowOn(Dispatchers.IO)
 
     fun getCurrentProfileRes(): Int {
-        val content = readRootFile(PROFILE_PATH)?.trim()
-        if (content.isNullOrBlank()) return R.string.status_unknown
+        val content = getCurrentProfileValue()
+        if (content.isBlank()) return R.string.status_unknown
         return when (content) {
             "0" -> R.string.status_initializing
             "1" -> {
@@ -146,13 +185,16 @@ object RootUtils {
 
     fun requestRootAccess(): Boolean = true
     fun isRootGranted(): Boolean = true
-    fun getRootManager(): String = "System"
+    fun getRootManager(): String = "ROM Integrated"
 
     fun observeServiceStatusRes(): Flow<Pair<Int, String>> = flow {
         var lastStatus: Pair<Int, String>? = null
         while (true) {
             val currentStatus = getServiceStatusRes()
-            if (currentStatus != lastStatus) { emit(currentStatus); lastStatus = currentStatus }
+            if (currentStatus != lastStatus) {
+                emit(currentStatus)
+                lastStatus = currentStatus
+            }
             delay(2000)
         }
     }.flowOn(Dispatchers.IO)

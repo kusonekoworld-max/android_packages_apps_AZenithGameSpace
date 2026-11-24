@@ -51,7 +51,15 @@ import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.SportsEsports
+import android.widget.Toast
+import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
@@ -137,6 +145,9 @@ internal fun LibraryGridStage(
     filterFocusRequester: FocusRequester? = null
 ) {
     // Null until the user picks: the default follows whether games exist once the load lands.
+    val context = LocalContext.current
+    val applistVm: ApplistViewmodel = viewModel()
+    var pendingRemoveApp by remember { mutableStateOf<ApplistViewmodel.AppInfo?>(null) }
     var scopeChoice by remember { mutableStateOf<Boolean?>(null) }
     val showAllApps = scopeChoice ?: games.isEmpty()
     var onlyEnabled by remember { mutableStateOf(false) }
@@ -181,6 +192,32 @@ internal fun LibraryGridStage(
             focusRequester = filterFocusRequester
         )
 
+        if (!applistVm.daemonAvailable) {
+            Spacer(Modifier.height(8.dp))
+            Surface(
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(Icons.Rounded.CloudOff, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Text(
+                        text = stringResource(R.string.daemon_unavailable_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilledTonalButton(onClick = { applistVm.loadApps(context, forceRefresh = true) }) {
+                        Text(stringResource(R.string.action_retry))
+                    }
+                }
+            }
+        }
+
         Spacer(Modifier.height(12.dp))
 
         val paneModifier = Modifier.weight(1f).fillMaxWidth()
@@ -200,7 +237,7 @@ internal fun LibraryGridStage(
                             app = app,
                             order = index.coerceAtMost(LIBRARY_STAGGER_CAP),
                             revealEpoch = revealEpoch,
-                            onClick = { onOpenSettings(app) },
+                            onClick = { if (!app.isInstalled) pendingRemoveApp = app else onOpenSettings(app) },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(LIBRARY_TILE_HEIGHT)
@@ -239,6 +276,41 @@ internal fun LibraryGridStage(
                 bodyRes = R.string.gamespace_no_games_desc,
                 icon = Icons.Rounded.GridView,
                 modifier = paneModifier
+            )
+        }
+
+        pendingRemoveApp?.let { stale ->
+            AlertDialog(
+                onDismissRequest = { pendingRemoveApp = null },
+                title = { Text(stringResource(R.string.remove_uninstalled_title)) },
+                text = {
+                    Text(stringResource(R.string.remove_uninstalled_message, stale.packageName))
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            pendingRemoveApp = null
+                            applistVm.removeManagedGame(context, stale.packageName) { ok ->
+                                val msg = if (ok) {
+                                    context.getString(R.string.uninstalled_removed_msg, stale.packageName)
+                                } else {
+                                    context.getString(R.string.daemon_sync_failed)
+                                }
+                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text(stringResource(R.string.action_remove))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingRemoveApp = null }) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                }
             )
         }
     }
@@ -426,6 +498,7 @@ private fun LibraryAppTile(
     val scheme = MaterialTheme.colorScheme
     val motion = MaterialTheme.motionScheme
     val tuned = app.isEnabledInConfig
+    val missing = !app.isInstalled
 
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -444,17 +517,29 @@ private fun LibraryAppTile(
         label = "LibraryTileLift"
     )
     val container = animateColorAsState(
-        targetValue = if (tuned) scheme.primaryContainer else scheme.surfaceContainer,
+        targetValue = when {
+            missing -> scheme.errorContainer
+            tuned -> scheme.primaryContainer
+            else -> scheme.surfaceContainer
+        },
         animationSpec = motion.defaultEffectsSpec(),
         label = "LibraryTileFill"
     )
-    val titleColor = if (tuned) scheme.onPrimaryContainer else scheme.onSurface
-    val chipContainer = if (tuned) {
-        scheme.primary.copy(alpha = 0.18f)
-    } else {
-        scheme.surfaceContainerHighest.copy(alpha = 0.85f)
+    val titleColor = when {
+        missing -> scheme.onErrorContainer
+        tuned -> scheme.onPrimaryContainer
+        else -> scheme.onSurface
     }
-    val chipContent = if (tuned) scheme.primary else scheme.onSurfaceVariant
+    val chipContainer = when {
+        missing -> scheme.error.copy(alpha = 0.18f)
+        tuned -> scheme.primary.copy(alpha = 0.18f)
+        else -> scheme.surfaceContainerHighest.copy(alpha = 0.85f)
+    }
+    val chipContent = when {
+        missing -> scheme.error
+        tuned -> scheme.primary
+        else -> scheme.onSurfaceVariant
+    }
 
     val enter = remember(revealEpoch) {
         val fresh = SystemClock.uptimeMillis() - revealEpoch < LIBRARY_REVEAL_WINDOW_MS
@@ -546,7 +631,13 @@ private fun LibraryAppTile(
                     contentColor = chipContent
                 ) {
                     Text(
-                        text = stringResource(if (tuned) R.string.gamespace_tuned else R.string.gamespace_untuned),
+                        text = stringResource(
+                            when {
+                                missing -> R.string.label_uninstalled
+                                tuned -> R.string.gamespace_tuned
+                                else -> R.string.gamespace_untuned
+                            }
+                        ),
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                         maxLines = 1

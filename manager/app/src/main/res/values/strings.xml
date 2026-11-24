@@ -718,4 +718,19 @@
     <string name="scale_confirm_countdown">Reverting in %d s…</string>
     <string name="scale_confirm_revert">Revert</string>
     <string name="scale_confirm_keep">Keep</string>
+
+    <!-- ROM-integrated daemon & uninstalled game detection -->
+    <string name="label_uninstalled">Uninstalled</string>
+    <string name="label_missing">Missing</string>
+    <string name="remove_uninstalled_title">Remove uninstalled game?</string>
+    <string name="remove_uninstalled_message">%1$s is no longer installed on this device. Remove this stale entry from the AZenith managed game list?</string>
+    <string name="action_remove">Remove</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_retry">Retry</string>
+    <string name="daemon_unavailable_title">AZenith daemon unavailable</string>
+    <string name="daemon_unavailable_desc">Cannot communicate with the ROM-integrated AZenith service. Game list changes cannot be synced until the service is running.</string>
+    <string name="daemon_sync_failed">Failed to synchronize changes with the AZenith daemon.</string>
+    <string name="uninstalled_removed_msg">Removed stale entry: %1$s</string>
+    <string name="cd_remove_uninstalled">Remove uninstalled entry</string>
+
 </resources>

@@ -79,6 +79,12 @@ import zx.azenith.R
 import kotlinx.coroutines.delay
 import zx.azenith.ui.component.*
 import zx.azenith.ui.component.AppIconImage
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.widget.Toast
+import androidx.core.content.ContextCompat
 import zx.azenith.ui.viewmodel.ApplistViewmodel
 
 
@@ -165,16 +171,33 @@ fun ApplistScreen(navController: NavController) {
         }
     )
 
-    DisposableEffect(lifecycleOwner) {
+    var pendingRemoveApp by remember { mutableStateOf<ApplistViewmodel.AppInfo?>(null) }
+
+    DisposableEffect(lifecycleOwner, context) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                if (ApplistViewmodel.apps.isNotEmpty()) {
-                    viewModel.refreshAppConfigStatus()
-                }
+                viewModel.loadApps(context, forceRefresh = true)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context?, intent: Intent?) {
+                viewModel.loadApps(context, forceRefresh = true)
+            }
+        }
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_PACKAGE_ADDED)
+            addAction(Intent.ACTION_PACKAGE_REMOVED)
+            addAction(Intent.ACTION_PACKAGE_FULLY_REMOVED)
+            addAction(Intent.ACTION_PACKAGE_REPLACED)
+            addDataScheme("package")
+        }
+        ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
     }
     
     Scaffold(
@@ -281,7 +304,13 @@ fun ApplistScreen(navController: NavController) {
                 contentPadding = listContentPadding,
                 itemContentIndexed = { index, app ->
                     ExpressiveListItem(
-                        onClick = { navController.navigate("app_settings/${app.packageName}") },
+                        onClick = {
+                            if (!app.isInstalled) {
+                                pendingRemoveApp = app
+                            } else {
+                                navController.navigate("app_settings/${app.packageName}")
+                            }
+                        },
                         headlineContent = {
                             Text(
                                 text = app.label,
@@ -313,6 +342,9 @@ fun ApplistScreen(navController: NavController) {
                                     if (app.isRecommended) {
                                         LabelText(stringResource(R.string.label_recommended), MaterialTheme.colorScheme.primary)
                                     }
+                                    if (!app.isInstalled) {
+                                        LabelText(stringResource(R.string.label_uninstalled), MaterialTheme.colorScheme.error)
+                                    }
                                     if (app.isSystem) {
                                         LabelText(stringResource(R.string.label_system), MaterialTheme.colorScheme.secondary)
                                     }
@@ -325,12 +357,57 @@ fun ApplistScreen(navController: NavController) {
                                 size = 60.dp
                             )
                         },
+                        trailingContent = if (!app.isInstalled) {
+                            {
+                                IconButton(onClick = { pendingRemoveApp = app }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = stringResource(R.string.cd_remove_uninstalled),
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                        } else null,
                         focusKey = app.packageName,
                         focusIndex = index
                     )
                 }
             )
                 }
+
+            if (!viewModel.daemonAvailable) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    shadowElevation = 4.dp,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = 16.dp, vertical = navBarBottomClearance(navBottomPadding) + 8.dp)
+                        .fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.daemon_unavailable_title),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = stringResource(R.string.daemon_unavailable_desc),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        FilledTonalButton(onClick = { viewModel.loadApps(context, forceRefresh = true) }) {
+                            Text(stringResource(R.string.action_retry))
+                        }
+                    }
+                }
+            }
 
             PullToRefreshDefaults.LoadingIndicator(
                 state = pullToRefreshState,
@@ -357,6 +434,41 @@ fun ApplistScreen(navController: NavController) {
             showFilterSheet = false
         }
     )
+
+    pendingRemoveApp?.let { stale ->
+        AlertDialog(
+            onDismissRequest = { pendingRemoveApp = null },
+            title = { Text(stringResource(R.string.remove_uninstalled_title)) },
+            text = {
+                Text(stringResource(R.string.remove_uninstalled_message, stale.packageName))
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingRemoveApp = null
+                        viewModel.removeManagedGame(context, stale.packageName) { ok ->
+                            val msg = if (ok) {
+                                context.getString(R.string.uninstalled_removed_msg, stale.packageName)
+                            } else {
+                                context.getString(R.string.daemon_sync_failed)
+                            }
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text(stringResource(R.string.action_remove))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRemoveApp = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+        )
+    }
 }
 
 @Composable

@@ -1,21 +1,4 @@
-/*
- * Copyright (C) 2026-2027 Zexshia
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package zx.azenith.ui.viewmodel
-
 
 import android.content.Context
 import android.content.pm.ApplicationInfo
@@ -31,8 +14,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.topjohnwu.superuser.io.SuFile
-import com.topjohnwu.superuser.io.SuFileInputStream
 import java.text.Collator
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
@@ -40,20 +21,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.parcelize.Parcelize
-import org.json.JSONObject
 import zx.azenith.R
-
+import zx.azenith.ui.util.AZenithControl
 
 class ApplistViewmodel : ViewModel() {
 
     companion object {
-        private const val TAG = "ApplistViewmodel"
-
-        // A pull-to-refresh that finishes faster than this is held open until
-        // it reaches the floor. Package enumeration is usually quicker than the
-        // spinner takes to appear, so without a floor the indicator appears and
-        // clears in the same frame and the gesture looks like it did nothing.
-        private const val MIN_REFRESH_VISIBLE_MS = 1000L
+        private const val MIN_REFRESH_VISIBLE_MS = 400L
         private val appsLock = Any()
         var apps by mutableStateOf<List<AppInfo>>(emptyList())
 
@@ -61,7 +35,8 @@ class ApplistViewmodel : ViewModel() {
         fun getAppIconDrawable(context: Context, packageName: String): Drawable? {
             val appList = synchronized(appsLock) { apps }
             val appDetail = appList.find { it.packageName == packageName }
-            return appDetail?.packageInfo?.applicationInfo?.loadIcon(context.packageManager)
+            if (appDetail == null || !appDetail.isInstalled) return null
+            return appDetail.packageInfo.applicationInfo?.loadIcon(context.packageManager)
         }
     }
 
@@ -70,27 +45,27 @@ class ApplistViewmodel : ViewModel() {
         val label: String,
         val packageInfo: PackageInfo,
         val isRecommended: Boolean = false,
-        var isEnabledInConfig: Boolean = false
+        var isEnabledInConfig: Boolean = false,
+        val isInstalled: Boolean = true
     ) : Parcelable {
         val packageName: String get() = packageInfo.packageName
-        val isSystem: Boolean get() = (packageInfo.applicationInfo?.flags?.and(ApplicationInfo.FLAG_SYSTEM) != 0)
+        val isSystem: Boolean
+            get() = isInstalled &&
+                (((packageInfo.applicationInfo?.flags ?: 0) and ApplicationInfo.FLAG_SYSTEM) != 0)
         val uid: Int get() = packageInfo.applicationInfo?.uid ?: 0
 
-        // Filtering lowercases every label and package on every keystroke, and
-        // the labels are already resolved, so keep the folded forms alongside
-        // the original rather than reallocating them per search.
         internal val searchLabel: String = label.lowercase(Locale.getDefault())
         internal val searchPackage: String = packageName.lowercase(Locale.getDefault())
     }
 
     var isRefreshing by mutableStateOf(false)
+    var daemonAvailable by mutableStateOf(true)
+        private set
+    var daemonError by mutableStateOf<String?>(null)
+        private set
 
     enum class SystemFilter { SHOW_ALL, ONLY_SYSTEM, HIDE_SYSTEM }
 
-    // Filters stack: flags are AND-ed across groups, and the two service-state
-    // flags are OR-ed with each other (neither or both checked = no service
-    // constraint), so Games + Disabled yields exactly the disabled games.
-    // HIDE_SYSTEM is the baseline, matching the old show_system_apps=false default.
     var systemFilter by mutableStateOf(SystemFilter.HIDE_SYSTEM)
     var filterGames by mutableStateOf(false)
     var filterEnabled by mutableStateOf(false)
@@ -108,26 +83,21 @@ class ApplistViewmodel : ViewModel() {
         filterDisabled = false
         systemFilter = SystemFilter.HIDE_SYSTEM
     }
-    
+
     var searchTextFieldValue by mutableStateOf(TextFieldValue(""))
         private set
-    
+
     private val searchQueryString: String get() = searchTextFieldValue.text
-    
     val searchQuery: String get() = searchTextFieldValue.text
 
     fun updateSearch(newValue: TextFieldValue) {
         searchTextFieldValue = newValue
     }
-    
+
     fun clearSearch() {
         searchTextFieldValue = TextFieldValue("")
     }
 
-    private val configPath = "/data/user/0/zx.azenith/files/azenithApplist.json"
-
-    // One predicate for the list and for the per-option counts, so a count can
-    // never drift from what selecting that option would actually show.
     private fun matchesFilters(
         app: AppInfo,
         query: String,
@@ -137,7 +107,7 @@ class ApplistViewmodel : ViewModel() {
         system: SystemFilter,
     ): Boolean {
         if (!(app.searchLabel.contains(query) || app.searchPackage.contains(query))) return false
-        if (games && !app.isRecommended) return false
+        if (games && !(app.isRecommended || (!app.isInstalled && app.isEnabledInConfig))) return false
         val serviceOk = (!enabled && !disabled) ||
             (enabled && app.isEnabledInConfig) ||
             (disabled && !app.isEnabledInConfig)
@@ -158,7 +128,6 @@ class ApplistViewmodel : ViewModel() {
         }
     }
 
-    /** What one option would show if turned on, holding every other group fixed. */
     fun countIf(
         games: Boolean = filterGames,
         enabled: Boolean = filterEnabled,
@@ -171,13 +140,10 @@ class ApplistViewmodel : ViewModel() {
         }
     }
 
-    // Built once: Collator.getInstance() is locale data lookup plus allocation,
-    // and it was being constructed inside the comparator, so a sort of a few
-    // hundred apps built one per comparison. The same instance is also reused
-    // for a stable locale ordering across searches.
     private val appComparator: Comparator<AppInfo> = run {
         val collator = Collator.getInstance(Locale.getDefault())
-        compareByDescending<AppInfo> { it.isEnabledInConfig }
+        compareByDescending<AppInfo> { !it.isInstalled && it.isEnabledInConfig }
+            .thenByDescending { it.isEnabledInConfig }
             .thenByDescending { it.isRecommended }
             .then(compareBy(collator) { it.label })
     }
@@ -186,39 +152,58 @@ class ApplistViewmodel : ViewModel() {
         if (!forceRefresh && apps.isNotEmpty()) return
 
         viewModelScope.launch(Dispatchers.IO) {
-            isRefreshing = true
+            withContext(Dispatchers.Main) { isRefreshing = true }
             val refreshStarted = SystemClock.elapsedRealtime()
             val pm = context.packageManager
 
-            val enabledList = getEnabledPackages()
+            val daemonResult = AZenithControl.getGamesResult()
+            val enabledList = daemonResult.getOrDefault(emptySet())
             val installed = pm.getInstalledPackages(PackageManager.GET_META_DATA)
+            val installedPkgNames = HashSet<String>(installed.size)
 
             val loadedApps = installed.map { pkg ->
+                installedPkgNames.add(pkg.packageName)
                 val appInfo = pkg.applicationInfo
-                
-
                 @Suppress("DEPRECATION")
                 val isGame = appInfo != null && (
                     appInfo.category == ApplicationInfo.CATEGORY_GAME ||
                     (appInfo.flags and ApplicationInfo.FLAG_IS_GAME) != 0
                 )
-
                 AppInfo(
-                    label = appInfo?.loadLabel(pm)?.toString() ?: context.getString(R.string.status_unknown),
+                    label = appInfo?.loadLabel(pm)?.toString()
+                        ?: context.getString(R.string.status_unknown),
                     packageInfo = pkg,
                     isRecommended = isGame,
-                    isEnabledInConfig = enabledList.contains(pkg.packageName)
+                    isEnabledInConfig = enabledList.contains(pkg.packageName),
+                    isInstalled = true
                 )
             }
 
-            withContext(Dispatchers.Main) {
-                synchronized(appsLock) {
-                    apps = loadedApps
+            // Detect packages in the daemon's managed game list that are no longer installed.
+            val missingApps = enabledList
+                .filter { pkg -> pkg.isNotBlank() && !installedPkgNames.contains(pkg) }
+                .sorted()
+                .map { pkg ->
+                    val syntheticPkg = PackageInfo().apply {
+                        this.packageName = pkg
+                    }
+                    AppInfo(
+                        label = pkg,
+                        packageInfo = syntheticPkg,
+                        isRecommended = false,
+                        isEnabledInConfig = true,
+                        isInstalled = false
+                    )
                 }
-                // Hold the spinner for a beat even when the rebuild was faster
-                // than that. A pull-to-refresh that dismisses in the same frame
-                // it appears reads as a dropped gesture rather than a refresh,
-                // so the result is given a minimum on-screen time.
+
+            val combined = missingApps + loadedApps
+
+            withContext(Dispatchers.Main) {
+                daemonAvailable = daemonResult.isSuccess
+                daemonError = daemonResult.exceptionOrNull()?.message
+                synchronized(appsLock) {
+                    apps = combined
+                }
                 val elapsed = SystemClock.elapsedRealtime() - refreshStarted
                 val remaining = MIN_REFRESH_VISIBLE_MS - elapsed
                 if (remaining > 0) delay(remaining)
@@ -229,18 +214,81 @@ class ApplistViewmodel : ViewModel() {
 
     fun refreshAppConfigStatus() {
         viewModelScope.launch(Dispatchers.IO) {
-            val enabledList = getEnabledPackages()
-            synchronized(appsLock) {
-                apps = apps.map { it.copy(isEnabledInConfig = enabledList.contains(it.packageName)) }
+            val daemonResult = AZenithControl.getGamesResult()
+            val enabledList = daemonResult.getOrElse {
+                withContext(Dispatchers.Main) {
+                    daemonAvailable = false
+                    daemonError = it.message
+                }
+                return@launch
+            }
+            val updated = synchronized(appsLock) {
+                val installedEntries = apps
+                    .filter { it.isInstalled }
+                    .map { it.copy(isEnabledInConfig = enabledList.contains(it.packageName)) }
+                val installedSet = installedEntries.mapTo(HashSet()) { it.packageName }
+                val missingEntries = enabledList
+                    .filter { pkg -> pkg.isNotBlank() && !installedSet.contains(pkg) }
+                    .sorted()
+                    .map { pkg ->
+                        val syntheticPkg = PackageInfo().apply { this.packageName = pkg }
+                        AppInfo(
+                            label = pkg,
+                            packageInfo = syntheticPkg,
+                            isRecommended = false,
+                            isEnabledInConfig = true,
+                            isInstalled = false
+                        )
+                    }
+                missingEntries + installedEntries
+            }
+            withContext(Dispatchers.Main) {
+                daemonAvailable = true
+                daemonError = null
+                synchronized(appsLock) {
+                    apps = updated
+                }
             }
         }
     }
 
-    private fun getEnabledPackages(): Set<String> {
-        val set = mutableSetOf<String>()
-        try {
-            set.addAll(zx.azenith.ui.util.AZenithControl.getGames())
-        } catch (e: Exception) { e.printStackTrace() }
-        return set
+    fun removeManagedGame(
+        context: Context,
+        packageName: String,
+        onComplete: (Boolean) -> Unit = {}
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val removed = AZenithControl.removeGameConfig(packageName)
+            withContext(Dispatchers.Main) {
+                if (removed) {
+                    daemonAvailable = true
+                    daemonError = null
+                    synchronized(appsLock) {
+                        apps = apps.mapNotNull { entry ->
+                            when {
+                                entry.packageName != packageName -> entry
+                                !entry.isInstalled -> null
+                                else -> entry.copy(isEnabledInConfig = false)
+                            }
+                        }
+                    }
+                    onComplete(true)
+                } else {
+                    daemonAvailable = AZenithControl.isDaemonAvailable()
+                    daemonError = context.getString(R.string.daemon_sync_failed)
+                    onComplete(false)
+                }
+            }
+        }
+    }
+
+    fun rescanDaemonGames(context: Context, onComplete: (Boolean) -> Unit = {}) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val ok = AZenithControl.rescanGames()
+            withContext(Dispatchers.Main) {
+                onComplete(ok)
+                loadApps(context, forceRefresh = true)
+            }
+        }
     }
 }
