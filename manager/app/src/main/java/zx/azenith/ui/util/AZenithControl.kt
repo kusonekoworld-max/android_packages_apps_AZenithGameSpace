@@ -154,7 +154,7 @@ object AZenithControl {
         }
     }
 
-    fun getGameConfigsResult(): Result> {
+    fun getGameConfigsResult(): Result<Map<String, AppConfig>> {
         val svc = service()
             ?: return Result.failure(IllegalStateException("AZenith daemon service is unavailable."))
         return runCatching {
@@ -163,7 +163,7 @@ object AZenithControl {
             if (svc.getApiVersion() >= 4) {
                 val rawJson = svc.getGameConfigs().orEmpty()
                 if (rawJson.isNotBlank()) {
-                    val decoded = json.decodeFromString>(rawJson)
+                    val decoded = json.decodeFromString<Map<String, AppConfig>>(rawJson)
                     map.putAll(decoded)
                 }
             }

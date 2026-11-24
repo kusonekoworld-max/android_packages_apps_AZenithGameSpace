@@ -13,7 +13,7 @@ import zx.azenith.ui.util.AppConfig
 
 class AppSettingsViewModel : ViewModel() {
 
-    var fullConfig by mutableStateOf>(emptyMap())
+    var fullConfig by mutableStateOf<Map<String, AppConfig>>(emptyMap())
         private set
 
     var daemonAvailable by mutableStateOf(true)
