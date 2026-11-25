@@ -853,12 +853,6 @@ internal fun WelcomeHubStage(
         }
     }
 
-    val rootGranted by produceState<Boolean?>(initialValue = null) {
-        value = withContext(Dispatchers.IO) { RootUtils.isRootGranted() }
-    }
-    val moduleInstalled by produceState<Boolean?>(initialValue = null) {
-        value = withContext(Dispatchers.IO) { RootUtils.isModuleInstalled() }
-    }
     val service by RootUtils.observeServiceStatusRes()
         .collectAsState(initial = R.string.status_initializing to "")
 
