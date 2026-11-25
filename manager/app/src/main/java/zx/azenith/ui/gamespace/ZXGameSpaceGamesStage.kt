@@ -904,22 +904,11 @@ internal fun WelcomeHubStage(
         }
     }
 
-    val rootValue = when (rootGranted) {
-        true -> stringResource(R.string.root_granted)
-        false -> stringResource(R.string.root_not_granted)
-        else -> stringResource(R.string.status_checking)
-    }
-    val moduleValue = when (moduleInstalled) {
-        true -> stringResource(service.first)
-        false -> stringResource(R.string.module_not_installed)
-        else -> stringResource(R.string.status_checking)
-    }
-    val suspended = stringResource(R.string.status_suspended)
-    val pidBadge = if (service.second.isNotBlank()) {
-        stringResource(R.string.pid_format, service.second)
-    } else {
-        suspended
-    }
+    val daemonOffline = service.first == R.string.status_offline
+    val moduleInstalled: Boolean = !daemonOffline
+    val rootGranted: Boolean = true
+    val moduleValue = stringResource(service.first)
+    val rootValue = stringResource(R.string.integration_rom)
 
     // The menu's overlay must sit in a plain full-size Box. As a direct child of the
     // AnimatedContent stage it inherited the stage's measured bounds, which are the content's
@@ -1005,7 +994,7 @@ internal fun WelcomeHubStage(
                     },
                     moduleInstalled = moduleInstalled,
                     moduleValue = moduleValue,
-                    servicePid = service.second.takeIf { moduleInstalled == true && it.isNotBlank() },
+                    servicePid = service.second.takeIf { !daemonOffline && it.isNotBlank() },
                     rootGranted = rootGranted,
                     rootValue = rootValue,
                     profile = profile,

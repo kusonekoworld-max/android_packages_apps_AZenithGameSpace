@@ -1670,11 +1670,7 @@ class ZXSidePanelService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
         }
     }
 
-    private fun checkRootGranted(): Boolean {
-        return runCatching {
-            Shell.isAppGrantedRoot() ?: Shell.getShell().isRoot
-        }.getOrDefault(false)
-    }
+    private fun checkRootGranted(): Boolean = RootUtils.isRootGranted()
 
     private fun queryForegroundPackageFromUsageStats(nowMs: Long): String? {
         val usm = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager

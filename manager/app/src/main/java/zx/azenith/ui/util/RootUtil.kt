@@ -186,8 +186,9 @@ object RootUtils {
         }
     }
 
-    fun requestRootAccess(): Boolean = true
-    fun isRootGranted(): Boolean = true
+    // ROM-integrated AZenith: Binder is the real service status.
+    fun requestRootAccess(): Boolean = isServiceAlive()
+    fun isRootGranted(): Boolean = isServiceAlive()
     fun getRootManager(): String = "ROM Integrated"
 
     fun observeServiceStatusRes(): Flow<Pair<Int, String>> = flow {
@@ -204,8 +205,11 @@ object RootUtils {
 
     fun isModuleInstalled(): Boolean = File(DAEMON_BIN).exists() || isServiceAlive()
 
-    fun getServiceStatusRes(): Pair<Int, String> =
-        if (isServiceAlive()) R.string.status_alive to "" else R.string.status_suspended to ""
+    fun getServiceStatusRes(): Pair<Int, String> = when {
+        isServiceAlive() -> R.string.status_active to ""
+        PropertyUtils.get("persist.sys.azenithIntg.state", "1") == "1" -> R.string.status_restarting to ""
+        else -> R.string.status_offline to ""
+    }
 
     fun isUpdateApkAvailable(): Boolean = false
     fun isModuleUpdatePendingReboot(): Boolean = false

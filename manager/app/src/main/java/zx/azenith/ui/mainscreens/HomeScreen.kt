@@ -244,16 +244,16 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                                 InfoTile(
                                     modifier = Modifier.weight(1f).fillMaxHeight(),
                                     icon = Icons.Rounded.PowerSettingsNew,
-                                    iconOverride = if (uiState.serviceStatusRes == R.string.status_alive)
+                                    iconOverride = if (uiState.serviceStatusRes == R.string.status_active)
                                         Icons.Rounded.CheckCircle
                                     else Icons.Rounded.PowerSettingsNew,
                                     label = stringResource(R.string.az_status),
                                     value = stringResource(
-                                        if (uiState.serviceStatusRes == R.string.status_alive)
+                                        if (uiState.serviceStatusRes == R.string.status_active)
                                             R.string.az_active
                                         else R.string.az_off
                                     ),
-                                    tone = if (uiState.serviceStatusRes == R.string.status_alive)
+                                    tone = if (uiState.serviceStatusRes == R.string.status_active)
                                         InfoTileTone.Good
                                     else InfoTileTone.Bad,
                                     highlight = false,
@@ -341,16 +341,16 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                             InfoTile(
                                 modifier = Modifier.weight(1f).fillMaxHeight(),
                                 icon = Icons.Rounded.PowerSettingsNew,
-                                iconOverride = if (uiState.serviceStatusRes == R.string.status_alive)
+                                iconOverride = if (uiState.serviceStatusRes == R.string.status_active)
                                         Icons.Rounded.CheckCircle
                                     else Icons.Rounded.PowerSettingsNew,
                                 label = stringResource(R.string.az_status),
                                 value = stringResource(
-                                        if (uiState.serviceStatusRes == R.string.status_alive)
+                                        if (uiState.serviceStatusRes == R.string.status_active)
                                             R.string.az_active
                                         else R.string.az_off
                                     ),
-                                tone = if (uiState.serviceStatusRes == R.string.status_alive)
+                                tone = if (uiState.serviceStatusRes == R.string.status_active)
                                         InfoTileTone.Good
                                     else InfoTileTone.Bad,
                                 highlight = false,
