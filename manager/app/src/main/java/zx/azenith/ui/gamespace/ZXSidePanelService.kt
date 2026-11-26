@@ -397,6 +397,21 @@ class ZXSidePanelService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
     @Volatile
     private var cachedApplistTimestampMs: Long = 0L
 
+    // Integrated daemon: the game list lives in the daemon (AZenithControl.getGames), not in
+    // azenithApplist.json, which is only a module-era backup file now.
+    private var cachedDaemonGames: Set<String> = emptySet()
+    private var cachedDaemonGamesTimestampMs: Long = 0L
+
+    private fun isDaemonGame(pkg: String): Boolean {
+        val now = System.currentTimeMillis()
+        if (now - cachedDaemonGamesTimestampMs > 1_500L) {
+            cachedDaemonGamesTimestampMs = now
+            cachedDaemonGames = runCatching { zx.azenith.ui.util.AZenithControl.getGames() }
+                .getOrDefault(cachedDaemonGames)
+        }
+        return cachedDaemonGames.contains(pkg)
+    }
+
     private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         when (key) {
             "gamespace_sidepanel_side" -> {
@@ -1877,6 +1892,10 @@ class ZXSidePanelService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
             }
         }
         if (cachedApplistPackages.contains(pkg)) {
+            return true
+        }
+
+        if (isDaemonGame(pkg)) {
             return true
         }
 
