@@ -133,6 +133,10 @@ fun ZXGameSpaceIntro(
 ) {
     val scheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
+    // Boot-stage text + dots only on the very first launch; later launches show just the logo block.
+    val introPrefs = androidx.compose.ui.platform.LocalContext.current
+        .getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+    val showStageTracker = remember { !introPrefs.getBoolean("gamespace_intro_seen", false) }
     var stageIndex by remember { mutableIntStateOf(0) }
     var handedOff by remember { mutableStateOf(false) }
     var skipRequested by remember { mutableStateOf(false) }
@@ -150,6 +154,7 @@ fun ZXGameSpaceIntro(
     val startExit = {
         if (!handedOff) {
             handedOff = true
+            introPrefs.edit().putBoolean("gamespace_intro_seen", true).apply()
             onTransitionStart()
             scope.launch {
                 exitProgress.animateTo(
@@ -348,7 +353,7 @@ fun ZXGameSpaceIntro(
                 stageIndex = stageIndex,
                 progress = progress.value,
                 exitTranslationY = exitTranslationDown * 1.2f,
-                exitAlpha = exitAlpha
+                exitAlpha = if (showStageTracker) exitAlpha else 0f
             )
         }
     }
