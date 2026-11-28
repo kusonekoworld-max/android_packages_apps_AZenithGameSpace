@@ -58,7 +58,14 @@ class ZenithReceiver : BroadcastReceiver() {
             ACTION_SHOW_SIDEPANEL -> {
                 val appLabel = intent.getStringExtra("sidepanel_pkg") ?: ""
                 if (appLabel.isNotBlank()) {
-                    zx.azenith.ui.gamespace.ZXSidePanelService.show(context, null, appLabel)
+                    val isPkg = appLabel.contains('.') && runCatching {
+                        context.packageManager.getPackageInfo(appLabel, 0)
+                    }.isSuccess
+                    if (isPkg) {
+                        zx.azenith.ui.gamespace.ZXSidePanelService.show(context, appLabel, null)
+                    } else {
+                        zx.azenith.ui.gamespace.ZXSidePanelService.show(context, null, appLabel)
+                    }
                 }
             }
             ACTION_MANAGE -> {

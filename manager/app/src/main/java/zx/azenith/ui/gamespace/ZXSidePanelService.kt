@@ -206,6 +206,9 @@ import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.roundToInt
 
+private val WS_REGEX = Regex("\\s+")
+private val DIGITS_REGEX = Regex("\\d+")
+
 /**
  * Overlay Service hosting the Material 3 Expressive Game Space Sidepanel, Detached Left Rail,
  * Right Widget Drawer, Floating Monitor, and Crosshair Reticle.
@@ -264,7 +267,7 @@ class ZXSidePanelService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
         /** Experimental master gate for the overlay. Default OFF: no source may show it. */
         fun isSidepanelEnabled(context: Context): Boolean =
             context.getSharedPreferences("settings", Context.MODE_PRIVATE)
-                .getBoolean(PREF_SIDEPANEL_ENABLED, false)
+                .getBoolean(PREF_SIDEPANEL_ENABLED, true)
 
         @Volatile
         var isServiceActive = false
@@ -1460,7 +1463,7 @@ class ZXSidePanelService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
     private fun isGameInfoFileActive(path: String, allowSu: Boolean): Boolean {
         val raw = telemetryCollector.readFileTextDirectOrSu(path, allowSu) ?: return false
         val firstLine = raw.lineSequence().firstOrNull { it.isNotBlank() }?.trim() ?: return false
-        val parts = firstLine.split(Regex("\\s+"))
+        val parts = firstLine.split(WS_REGEX)
         val pkg = parts.getOrNull(0)?.takeIf { it.isNotEmpty() } ?: return false
         if (pkg.equals("NULL", ignoreCase = true)) return false
 
@@ -1770,7 +1773,7 @@ class ZXSidePanelService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
                         // Master gate: disabled (default) blocks auto-show,
                         // except when the force check explicitly allows it.
                         val forceSidepanel = isForceSidepanelEnabled()
-                        val sidepanelEnabled = prefs.getBoolean(PREF_SIDEPANEL_ENABLED, false) || forceSidepanel
+                        val sidepanelEnabled = prefs.getBoolean(PREF_SIDEPANEL_ENABLED, true) || forceSidepanel
                         val isHostedFloatingApp = sidepanelEnabled &&
                             (floatingAppManager?.isPackageHosted(focusedPkg) == true ||
                                 floatingAppManager?.sessions?.any { it.packageName == focusedPkg } == true)
@@ -2097,7 +2100,8 @@ class ZXSidePanelService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
             val stateText = telemetryCollector.readFileTextDirectOrSu(DAEMON_RECORD_STATE_PATH, rootGranted)?.trim().orEmpty()
             val cmd = if (stateText.startsWith("recording")) "stop\n" else "start\n"
             if (rootGranted) {
-                RootUtils.writeRootFile(DAEMON_RECORD_CMD_PATH, cmd)
+                val wrote = runCatching { File(DAEMON_RECORD_CMD_PATH).writeText(cmd) }.isSuccess
+                if (!wrote) RootUtils.writeRootFile(DAEMON_RECORD_CMD_PATH, cmd)
             }
         }
     }
@@ -2412,7 +2416,7 @@ private class ZXRealTelemetryCollector {
             }
         } catch (_: Exception) {
         }
-        if (allowSuFallback) {
+        if (allowSuFallback && !suFallbackBlocked(path)) {
             try {
                 val suFile = SuFile(path)
                 if (suFile.exists()) {
@@ -2428,13 +2432,25 @@ private class ZXRealTelemetryCollector {
                 }
             } catch (_: Exception) {
             }
+            markSuFallbackMiss(path)
         }
         return null
     }
 
+    private val suFallbackMissUntil = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    private fun suFallbackBlocked(path: String): Boolean {
+        val until = suFallbackMissUntil[path] ?: return false
+        return android.os.SystemClock.elapsedRealtime() < until
+    }
+
+    private fun markSuFallbackMiss(path: String) {
+        suFallbackMissUntil[path] = android.os.SystemClock.elapsedRealtime() + 5_000L
+    }
+
     private fun readFirstLineDirectOrSu(path: String, allowSuFallback: Boolean): String? {
         readFirstLineDirect(File(path))?.let { return it }
-        if (allowSuFallback) {
+        if (allowSuFallback && !suFallbackBlocked(path)) {
             try {
                 val suFile = SuFile(path)
                 if (suFile.exists()) {
@@ -2449,13 +2465,14 @@ private class ZXRealTelemetryCollector {
                 }
             } catch (_: Exception) {
             }
+            markSuFallbackMiss(path)
         }
         return null
     }
 
     private fun parseProcStatLine(line: String?): Pair<Long, Long>? {
         if (line == null || !line.startsWith("cpu ")) return null
-        val parts = line.trim().split(Regex("\\s+"))
+        val parts = line.trim().split(WS_REGEX)
         if (parts.size < 5) return null
         val user = parts.getOrNull(1)?.toLongOrNull() ?: 0L
         val nice = parts.getOrNull(2)?.toLongOrNull() ?: 0L
@@ -2507,7 +2524,7 @@ private class ZXRealTelemetryCollector {
             val maxKhz = coreMaxFreqKhz[idx] ?: run {
                 val availMax = readFirstLineDirect(File(dir, "scaling_available_frequencies"))
                     ?.trim()
-                    ?.split(Regex("\\s+"))
+                    ?.split(WS_REGEX)
                     ?.mapNotNull { it.toLongOrNull() }
                     ?.maxOrNull()
                 val m = availMax
@@ -2519,7 +2536,7 @@ private class ZXRealTelemetryCollector {
             val minKhz = coreMinFreqKhz[idx] ?: run {
                 val availMin = readFirstLineDirect(File(dir, "scaling_available_frequencies"))
                     ?.trim()
-                    ?.split(Regex("\\s+"))
+                    ?.split(WS_REGEX)
                     ?.mapNotNull { it.toLongOrNull() }
                     ?.minOrNull()
                 val mn = availMin
@@ -2566,12 +2583,12 @@ private class ZXRealTelemetryCollector {
             val raw = readFileTextDirectOrSu(path, rootGranted)?.trim()
             if (!raw.isNullOrEmpty()) {
                 if (path.endsWith("gpubusy")) {
-                    val nums = Regex("\\d+").findAll(raw).mapNotNull { it.value.toLongOrNull() }.toList()
+                    val nums = DIGITS_REGEX.findAll(raw).mapNotNull { it.value.toLongOrNull() }.toList()
                     if (nums.size >= 2 && nums[1] > 0L) {
                         return ((nums[0] * 100L) / nums[1]).toInt().coerceIn(0, 100)
                     }
                 } else {
-                    val firstInt = Regex("\\d+").find(raw)?.value?.toIntOrNull()
+                    val firstInt = DIGITS_REGEX.find(raw)?.value?.toIntOrNull()
                     if (firstInt != null && firstInt in 0..100) {
                         return firstInt
                     }
@@ -2599,7 +2616,7 @@ private class ZXRealTelemetryCollector {
                         val loadRaw = readFirstLineDirect(File(d, "load"))
                             ?: readFirstLineDirect(File(d, "utilization"))
                         if (!loadRaw.isNullOrEmpty()) {
-                            val pct = Regex("\\d+").find(loadRaw.substringBefore('@'))?.value?.toIntOrNull()
+                            val pct = DIGITS_REGEX.find(loadRaw.substringBefore('@'))?.value?.toIntOrNull()
                             if (pct != null && pct in 0..100) return pct
                         }
                         val cf = readLongDirect(File(d, "cur_freq"))
@@ -2727,7 +2744,7 @@ private class ZXRealTelemetryCollector {
     private fun readDaemonFps(cap: Int, rootGranted: Boolean): Int? {
         val raw = readFileTextDirectOrSu("/data/system/AZenithInt/API/current_fps", rootGranted)
             ?: return null
-        val f = raw.trim().split(Regex("\\s+"))
+        val f = raw.trim().split(WS_REGEX)
         if (f.size < 2) return null
         val fps = f[0].toIntOrNull() ?: return null
         val at = f[1].toLongOrNull() ?: return null

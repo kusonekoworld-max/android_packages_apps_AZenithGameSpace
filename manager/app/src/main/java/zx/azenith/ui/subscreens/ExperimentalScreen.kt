@@ -77,7 +77,7 @@ fun ExperimentalScreen(navController: NavController) {
     var sidepanelOn by remember {
         mutableStateOf(
             context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
-                .getBoolean("gamespace_sidepanel_enabled", false)
+                .getBoolean("gamespace_sidepanel_enabled", true)
         )
     }
     var enteringGameSpace by remember { mutableStateOf(false) }

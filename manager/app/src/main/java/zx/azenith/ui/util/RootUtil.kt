@@ -29,11 +29,13 @@ object RootUtils {
         runCatching { HiddenApiBypass.addHiddenApiExemptions("") }.isSuccess
     }
 
+    private val checkServiceMethod by lazy {
+        Class.forName("android.os.ServiceManager").getMethod("checkService", String::class.java)
+    }
+
     internal fun getService(): IBinder? = try {
         hiddenApiReady
-        Class.forName("android.os.ServiceManager")
-            .getMethod("checkService", String::class.java)
-            .invoke(null, SERVICE_NAME) as? IBinder
+        checkServiceMethod.invoke(null, SERVICE_NAME) as? IBinder
     } catch (_: Exception) {
         null
     }
